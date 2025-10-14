@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
-// services
-import { teamsApi } from '@/services/teams';
+// hooks
+import { useTeams, useTeamMembers } from '@/hooks/useTeams';
+import { useMyClocks } from '@/hooks/useClocks';
 import { clocksApi } from '@/services/clocks';
 
 // types
-import type { Team, TeamMember } from '@/types/team';
 import type { UserClocks } from '@/types/clock';
 
 // context
 import { useAuth } from '@/context/AuthContext';
+import { useClock } from '@/context/ClockContext';
 
 // icons
 import { Calendar, ChevronLeft, ChevronRight, Users, Clock } from 'lucide-react';
@@ -22,98 +23,16 @@ import { Badge } from '@/components/ui/badge';
 
 export default function Planning() {
   const { user } = useAuth();
-  const [myTeam, setMyTeam] = useState<Team | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { lastClockUpdate } = useClock();
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [clockData, setClockData] = useState<{ [userId: number]: UserClocks }>({});
-  const [myClockData, setMyClockData] = useState<UserClocks | null>(null);
 
   const weekDays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
   const isManager = user?.role === 'Manager';
 
-  // Load data based on role
-  useEffect(() => {
-    if (isManager) {
-      loadManagerTeam();
-    } else if (user) {
-      loadEmployeeData();
-    }
-  }, [user, currentWeek]);
-
-  const loadManagerTeam = async () => {
-    try {
-      setLoading(true);
-      const teams = await teamsApi.getAll();
-
-      // Find the team where current user is the manager
-      const managerTeam = teams.find(team => team.manager_id === user?.id);
-
-      if (managerTeam) {
-        setMyTeam(managerTeam);
-        const teamMembers = await teamsApi.getMembers(managerTeam.id);
-        setMembers(teamMembers);
-
-        // Load clock data for each team member
-        await loadTeamClockData(teamMembers);
-      }
-
-      setError('');
-    } catch (err) {
-      setError('Erreur lors du chargement de l\'équipe');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadEmployeeData = async () => {
-    try {
-      setLoading(true);
-      const weekDates = getWeekDates();
-      const startDate = weekDates[0];
-      const endDate = weekDates[6];
-
-      const data = await clocksApi.getMyClocks(
-        startDate.toISOString(),
-        endDate.toISOString()
-      );
-      setMyClockData(data);
-      setError('');
-    } catch (err) {
-      setError('Erreur lors du chargement des données');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadTeamClockData = async (teamMembers: TeamMember[]) => {
-    const weekDates = getWeekDates();
-    const startDate = weekDates[0];
-    const endDate = weekDates[6];
-
-    const clockDataMap: { [userId: number]: UserClocks } = {};
-
-    for (const member of teamMembers) {
-      try {
-        const data = await clocksApi.getUserClocks(
-          member.id,
-          startDate.toISOString(),
-          endDate.toISOString()
-        );
-        clockDataMap[member.id] = data;
-      } catch (err) {
-        console.error(`Error loading clocks for user ${member.id}:`, err);
-      }
-    }
-
-    setClockData(clockDataMap);
-  };
-
-  const getWeekDates = () => {
+  // Get week dates
+  const weekDates = useMemo(() => {
     const startOfWeek = new Date(currentWeek);
     const day = startOfWeek.getDay();
     const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
@@ -124,6 +43,44 @@ export default function Planning() {
       date.setDate(startOfWeek.getDate() + index);
       return date;
     });
+  }, [currentWeek]);
+
+  // Employee queries
+  const { data: myClockData, isLoading: loadingMyClocks } = useMyClocks(
+    weekDates[0].toISOString(),
+    weekDates[6].toISOString()
+  );
+
+  // Manager queries
+  const { data: teams = [], isLoading: loadingTeams } = useTeams();
+  const myTeam = useMemo(() => teams.find(team => team.manager_id === user?.id), [teams, user]);
+  const { data: members = [], isLoading: loadingMembers } = useTeamMembers(myTeam?.id || 0);
+
+  // Load team clock data for manager
+  useEffect(() => {
+    if (isManager && members.length > 0) {
+      loadTeamClockData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members, currentWeek, lastClockUpdate]);
+
+  const loadTeamClockData = async () => {
+    const clockDataMap: { [userId: number]: UserClocks } = {};
+
+    for (const member of members) {
+      try {
+        const data = await clocksApi.getUserClocks(
+          member.id,
+          weekDates[0].toISOString(),
+          weekDates[6].toISOString()
+        );
+        clockDataMap[member.id] = data;
+      } catch (err) {
+        console.error(`Error loading clocks for user ${member.id}:`, err);
+      }
+    }
+
+    setClockData(clockDataMap);
   };
 
   const formatDate = (date: Date) => {
@@ -150,6 +107,8 @@ export default function Planning() {
     return null;
   }
 
+  const loading = isManager ? (loadingTeams || loadingMembers) : loadingMyClocks;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -157,8 +116,6 @@ export default function Planning() {
       </div>
     );
   }
-
-  const weekDates = getWeekDates();
 
   // Employee view
   if (!isManager) {
@@ -171,12 +128,6 @@ export default function Planning() {
             Consultez et gérez vos horaires de travail
           </p>
         </div>
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
 
         {/* Week Navigation */}
         <Card>
@@ -237,17 +188,22 @@ export default function Planning() {
                       const dateStr = weekDates[index].toISOString().split('T')[0];
                       const dayData = myClockData?.working_hours.find(wh => wh.date === dateStr);
 
-                      if (dayData && dayData.hours_worked > 0) {
+                      if (dayData && dayData.check_in) {
+                        const hasCheckout = !!dayData.check_out;
                         return (
-                          <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center">
-                            <div className="flex items-center justify-center gap-1 text-sm font-medium text-green-700 mb-1">
+                          <div className={`p-3 border rounded-lg text-center ${hasCheckout ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+                            <div className={`flex items-center justify-center gap-1 text-sm font-medium mb-1 ${hasCheckout ? 'text-green-700' : 'text-blue-700'}`}>
                               <Clock className="w-4 h-4" />
-                              <span>{dayData.hours_worked.toFixed(1)}h</span>
+                              <span>{hasCheckout ? `${dayData.hours_worked.toFixed(1)}h` : 'En cours'}</span>
                             </div>
-                            <p className="text-xs text-green-600">
-                              {dayData.check_in ? new Date(dayData.check_in).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                              {' → '}
-                              {dayData.check_out ? new Date(dayData.check_out).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                            <p className={`text-xs ${hasCheckout ? 'text-green-600' : 'text-blue-600'}`}>
+                              {new Date(dayData.check_in).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                              {hasCheckout && dayData.check_out && (
+                                <>
+                                  {' → '}
+                                  {new Date(dayData.check_out).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                </>
+                              )}
                             </p>
                           </div>
                         );
@@ -354,12 +310,6 @@ export default function Planning() {
         </p>
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       {/* Week Navigation */}
       <Card>
         <CardContent className="pt-6">
@@ -458,16 +408,20 @@ export default function Planning() {
                         key={`${member.id}-${day}`}
                         className="p-4 border-r last:border-r-0 text-center"
                       >
-                        {dayData && dayData.hours_worked > 0 ? (
+                        {dayData && dayData.check_in ? (
                           <>
-                            <div className="flex items-center justify-center gap-1 text-sm font-semibold text-green-700">
+                            <div className={`flex items-center justify-center gap-1 text-sm font-semibold ${dayData.check_out ? 'text-green-700' : 'text-blue-700'}`}>
                               <Clock className="w-4 h-4" />
-                              <span>{dayData.hours_worked.toFixed(1)}h</span>
+                              <span>{dayData.check_out ? `${dayData.hours_worked.toFixed(1)}h` : 'En cours'}</span>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {dayData.check_in ? new Date(dayData.check_in).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                              {' → '}
-                              {dayData.check_out ? new Date(dayData.check_out).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                            <p className={`text-xs mt-1 ${dayData.check_out ? 'text-muted-foreground' : 'text-blue-600'}`}>
+                              {new Date(dayData.check_in).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                              {dayData.check_out && (
+                                <>
+                                  {' → '}
+                                  {new Date(dayData.check_out).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                </>
+                              )}
                             </p>
                           </>
                         ) : (

@@ -4,7 +4,6 @@ dotenv.config();
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import pool from './config/database';
 import authRoutes from './routes/auth';
 import teamsRoutes from './routes/teams';
@@ -50,28 +49,6 @@ app.use(cors({
   credentials: true,
   optionsSuccessStatus: 200
 }));
-
-// Rate limiting - General
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Rate limiting
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: 'Too many authentication attempts, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
-app.use('/api/', generalLimiter);
 
 // Body parser with size limits
 app.use(express.json({ limit: '10kb' }));
@@ -124,6 +101,9 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
 
 export default app;

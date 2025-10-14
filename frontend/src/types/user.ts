@@ -4,6 +4,7 @@ export interface User {
   first_name: string;
   last_name: string;
   role: 'Manager' | 'Employé';
+  team_id?: number;
 }
 
 export interface AuthResponse {

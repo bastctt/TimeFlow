@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FormEvent, ChangeEvent } from 'react';
 
-// services
-import { usersApi } from '@/services/users';
+// hooks
+import { useEmployees } from '@/hooks/useUsers';
+import { useCreateEmployee, useUpdateUser, useDeleteUser } from '@/hooks/mutations/useUserMutations';
 
 // types
 import type { User, CreateEmployeeData, UpdateEmployeeData } from '@/types/user';
 
 // context
 import { useAuth } from '@/context/AuthContext';
+
+// sonner
+import { toast } from 'sonner';
 
 // icons
 import { Users as UsersIcon, Trash2, Edit, Plus, Mail, User as UserIcon, Eye, EyeOff } from 'lucide-react';
@@ -31,9 +35,6 @@ import {
 
 export default function Users() {
   const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formData, setFormData] = useState<CreateEmployeeData>({
@@ -42,27 +43,15 @@ export default function Users() {
     first_name: '',
     last_name: '',
   });
-  const [formError, setFormError] = useState('');
-  const [formLoading, setFormLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  // Queries
+  const { data: users = [], isLoading: loading } = useEmployees();
 
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const data = await usersApi.getEmployees();
-      setUsers(data);
-      setError('');
-    } catch (err) {
-      setError('Erreur lors du chargement des employés');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Mutations
+  const createEmployee = useCreateEmployee();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
 
   const handleOpenModal = (user?: User) => {
     if (user) {
@@ -82,7 +71,6 @@ export default function Users() {
         last_name: '',
       });
     }
-    setFormError('');
     setShowModal(true);
   };
 
@@ -95,7 +83,6 @@ export default function Users() {
       first_name: '',
       last_name: '',
     });
-    setFormError('');
   };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -104,8 +91,11 @@ export default function Users() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setFormError('');
-    setFormLoading(true);
+
+    if (!editingUser && (!formData.password || formData.password.length < 6)) {
+      toast.error('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
 
     try {
       if (editingUser) {
@@ -115,25 +105,15 @@ export default function Users() {
           first_name: formData.first_name,
           last_name: formData.last_name,
         };
-        await usersApi.updateEmployee(editingUser.id, updateData);
+        await updateUser.mutateAsync({ id: editingUser.id, data: updateData });
       } else {
         // Create employee
-        if (!formData.password || formData.password.length < 6) {
-          setFormError('Le mot de passe doit contenir au moins 6 caractères');
-          setFormLoading(false);
-          return;
-        }
-        await usersApi.createEmployee(formData);
+        await createEmployee.mutateAsync(formData);
       }
 
       handleCloseModal();
-      loadUsers();
-    } catch (err: any) {
-      setFormError(
-        err.response?.data?.error || 'Une erreur est survenue'
-      );
-    } finally {
-      setFormLoading(false);
+    } catch (err) {
+      console.error(err)
     }
   };
 
@@ -143,10 +123,9 @@ export default function Users() {
     }
 
     try {
-      await usersApi.deleteUser(userId);
-      loadUsers();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Erreur lors de la suppression');
+      await deleteUser.mutateAsync(userId);
+    } catch (err) {
+      console.error(err)
     }
   };
 
@@ -173,6 +152,8 @@ export default function Users() {
     );
   }
 
+  const formLoading = createEmployee.isPending || updateUser.isPending;
+
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -183,17 +164,11 @@ export default function Users() {
             Créez et gérez les comptes de vos employés
           </p>
         </div>
-        <Button onClick={() => handleOpenModal()} className="flex items-center gap-2" variant="outline">
+        <Button onClick={() => handleOpenModal()} className="flex items-center gap-2" variant="outline" size={"sm"}>
           <Plus className="w-4 h-4" />
           Nouvel employé
         </Button>
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Users List */}
       {users.length === 0 ? (
@@ -277,12 +252,6 @@ export default function Users() {
                 : 'Remplissez le formulaire pour créer un nouveau compte employé'}
             </DialogDescription>
           </DialogHeader>
-
-          {formError && (
-            <Alert variant="destructive">
-              <AlertDescription>{formError}</AlertDescription>
-            </Alert>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

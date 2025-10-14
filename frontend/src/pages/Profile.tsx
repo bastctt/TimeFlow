@@ -5,8 +5,8 @@ import { useNavigate } from 'react-router-dom';
 // context
 import { useAuth } from '@/context/AuthContext';
 
-// services
-import { usersApi } from '@/services/users';
+// hooks
+import { useUpdateUser, useDeleteUser } from '@/hooks/mutations/useUserMutations';
 
 // icons
 import { AlertCircle, User, Briefcase, Trash2 } from 'lucide-react';
@@ -21,7 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 
 export default function Profile() {
-  const { user, updateUser, logout } = useAuth();
+  const { user, updateUser: updateAuthUser, logout } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: user?.email || '',
@@ -29,29 +29,30 @@ export default function Profile() {
     last_name: user?.last_name || '',
     role: user?.role || 'Employé'
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Mutations
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
+
+    if (!user) return;
 
     try {
-      await updateUser(formData);
-      setSuccess('Profil mis à jour avec succès');
+      await updateUser.mutateAsync({
+        id: user.id,
+        data: {
+          email: formData.email,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+        }
+      });
+
+      // Update auth context
+      await updateAuthUser(formData);
     } catch (err) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosError = err as { response?: { data?: { error?: string } } };
-        setError(axiosError.response?.data?.error || 'Une erreur est survenue');
-      } else {
-        setError('Une erreur est survenue');
-      }
-    } finally {
-      setLoading(false);
+      console.error(err)
     }
   };
 
@@ -69,23 +70,18 @@ export default function Profile() {
     }
 
     try {
-      setDeleteLoading(true);
-      await usersApi.deleteUser(user.id);
+      await deleteUser.mutateAsync(user.id);
       logout();
       navigate('/login');
     } catch (err) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosError = err as { response?: { data?: { error?: string } } };
-        setError(axiosError.response?.data?.error || 'Erreur lors de la suppression du compte');
-      } else {
-        setError('Erreur lors de la suppression du compte');
-      }
-    } finally {
-      setDeleteLoading(false);
+      console.error(err)
     }
   };
 
   if (!user) return null;
+
+  const loading = updateUser.isPending;
+  const deleteLoading = deleteUser.isPending;
 
   return (
     <div className="space-y-6 pb-8">
@@ -99,18 +95,6 @@ export default function Profile() {
           <p className="text-muted-foreground mt-1">Gérez vos informations personnelles</p>
         </div>
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {success && (
-        <Alert>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Profile Form */}
       <Card>
@@ -135,6 +119,7 @@ export default function Profile() {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, first_name: e.target.value })}
                   required
                   minLength={2}
+                  disabled={user.role === 'Employé'}
                 />
               </div>
               <div className="space-y-2">
@@ -146,6 +131,7 @@ export default function Profile() {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, last_name: e.target.value })}
                   required
                   minLength={2}
+                  disabled={user.role === 'Employé'}
                 />
               </div>
             </div>
@@ -158,6 +144,7 @@ export default function Profile() {
                 value={formData.email}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, email: e.target.value })}
                 required
+                disabled={user.role === 'Employé'}
               />
             </div>
 
@@ -203,12 +190,17 @@ export default function Profile() {
                 type="button"
                 variant="secondary"
                 size={"sm"}
-                onClick={() => setFormData({
-                  email: user.email,
-                  first_name: user.first_name,
-                  last_name: user.last_name,
-                  role: user.role
-                })}
+                disabled={loading}
+                onClick={() => {
+                  if (user) {
+                    setFormData({
+                      email: user.email,
+                      first_name: user.first_name,
+                      last_name: user.last_name,
+                      role: user.role
+                    });
+                  }
+                }}
               >
                 Réinitialiser
               </Button>

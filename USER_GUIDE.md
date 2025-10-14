@@ -2,73 +2,62 @@
 
 ## Accès
 
-**Local dev**: http://localhost:5173
-**Docker**: http://localhost
+- **Local**: http://localhost:5173
+- **Docker**: http://localhost
 
-## Comptes de Test
+## Comptes Test
 
-**Managers**:
--  / password123
--  / password123
-
-**Employés**:
--  / password123
--  / password123
+- **Manager**: manager1@timemanager.com / password123
+- **Employé**: marketing1@timemanager.com / password123
 
 ## Rôles
 
-### Manager
-**Permissions**: Gestion d'équipes, vue planning équipe, CRUD utilisateurs
-**Pages**: Dashboard, Mon équipe, Planning, Mon profil
-
-### Employé
-**Permissions**: Vue personnelle, planning perso
-**Pages**: Dashboard, Mon planning, Mon profil
+**Manager**: Gestion équipes, planning équipe, gestion utilisateurs
+**Employé**: Vue personnelle, planning perso, pointage
 
 ## Fonctionnalités
 
 ### Connexion
-1. Email + mot de passe → **Se connecter**
-2. Session valide 24h
-
-### Inscription
-1. Email, mot de passe (6+ chars), prénom, nom, rôle
-2. **S'inscrire** → Redirection dashboard
+Email + mot de passe → **Se connecter**
+Session valide 24h
 
 ### Dashboard
-- Résumé activité
-- Statistiques personnalisées par rôle
+Résumé activité et statistiques par rôle
 
 ### Mon équipe (Manager)
-**Créer équipe**: Nom + description
-**Modifier**: Cliquer sur équipe → éditer
-**Supprimer**: Bouton supprimer (confirmation)
-**Gérer membres**: Ajouter/retirer employés
+- **Créer équipe**: Nom + description
+- **Modifier**: Cliquer sur équipe → éditer
+- **Supprimer**: Bouton supprimer
+- **Gérer membres**: Ajouter/retirer employés
 
 ### Planning
-**Manager**: Planning hebdomadaire de l'équipe
-**Employé**: Planning personnel
-**Navigation**: ← Semaine précédente | Aujourd'hui | Semaine suivante →
+- **Manager**: Planning hebdomadaire de l'équipe
+- **Employé**: Planning personnel
+- **Navigation**: ← Semaine | Aujourd'hui | Semaine →
+
+### Pointage (Employé)
+- **Arrivée**: Check-in
+- **Départ**: Check-out
+- Historique des pointages
 
 ### Profil
-- Modifier: email, prénom, nom
-- **Enregistrer** pour sauvegarder
+Modifier email, prénom, nom → **Enregistrer**
 
 ### Déconnexion
-Cliquer icône profil → **Se déconnecter**
+Icône profil → **Se déconnecter**
 
 ## Navigation
 
-Sidebar gauche:
-- **Dashboard** 📊
-- **Mon équipe** / **Pointage** (selon rôle)
-- **Planning**
-- **Mon profil** 👤
-- **Se déconnecter** 🚪
+Sidebar:
+- 📊 Dashboard
+- 👥 Mon équipe / ⏱️ Pointage
+- 📅 Planning
+- 👤 Mon profil
+- 🚪 Se déconnecter
 
 ## Troubleshooting
 
-**Erreur connexion**: Vérifier email/mot de passe
-**Session expirée**: Se reconnecter (token 24h)
-**403 Forbidden**: Fonction réservée aux Managers
-**Page blanche**: F5 ou vider cache navigateur
+- **Erreur connexion**: Vérifier email/mot de passe
+- **Session expirée**: Se reconnecter (24h)
+- **403 Forbidden**: Fonction réservée aux Managers
+- **Page blanche**: F5 ou vider cache

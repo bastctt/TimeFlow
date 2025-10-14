@@ -47,12 +47,12 @@ CREATE INDEX IF NOT EXISTS idx_clocks_user_time ON clocks(user_id, clock_time DE
 CREATE INDEX IF NOT EXISTS idx_clocks_status ON clocks(status);
 
 -- Grant permissions
-GRANT ALL PRIVILEGES ON TABLE users TO postgres;
-GRANT ALL PRIVILEGES ON TABLE teams TO postgres;
-GRANT ALL PRIVILEGES ON TABLE clocks TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE users_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE teams_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE clocks_id_seq TO postgres;
+GRANT ALL PRIVILEGES ON TABLE users TO dev;
+GRANT ALL PRIVILEGES ON TABLE teams TO dev;
+GRANT ALL PRIVILEGES ON TABLE clocks TO dev;
+GRANT USAGE, SELECT ON SEQUENCE users_id_seq TO dev;
+GRANT USAGE, SELECT ON SEQUENCE teams_id_seq TO dev;
+GRANT USAGE, SELECT ON SEQUENCE clocks_id_seq TO dev;
 
 -- Insert sample data
 -- Note: password is 'password123' hashed with bcrypt (10 rounds)

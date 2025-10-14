@@ -25,7 +25,7 @@ router.get(
   }
 );
 
-// Get all employees (Manager only - filtered by manager's team)
+// Get all employees (Manager only - filtered by manager's teams)
 router.get(
   '/employees',
   authenticateToken,
@@ -37,17 +37,21 @@ router.get(
         return;
       }
 
-      // Get current manager's team
-      const manager = await UserModel.findById(req.user.id);
+      // Get all teams managed by this manager
+      const { TeamModel } = await import('../models/Team.model');
+      const managedTeams = await TeamModel.findByManagerId(req.user.id);
 
-      if (!manager || !manager.team_id) {
+      if (managedTeams.length === 0) {
         res.status(200).json({ users: [] });
         return;
       }
 
-      // Get all employees from manager's team only
+      // Get team IDs
+      const teamIds = managedTeams.map(team => team.id);
+
+      // Get all employees from all managed teams
       const allEmployees = await UserModel.findByRole('Employé');
-      const teamEmployees = allEmployees.filter(emp => emp.team_id === manager.team_id);
+      const teamEmployees = allEmployees.filter(emp => emp.team_id && teamIds.includes(emp.team_id));
       const employeesResponse = teamEmployees.map(user => UserModel.toResponse(user));
 
       res.status(200).json({ users: employeesResponse });
@@ -78,11 +82,12 @@ router.post(
 
       const { email, password, first_name, last_name } = req.body;
 
-      // Get current manager's team
-      const manager = await UserModel.findById(req.user.id);
+      // Get teams managed by this manager
+      const { TeamModel } = await import('../models/Team.model');
+      const managedTeams = await TeamModel.findByManagerId(req.user.id);
 
-      if (!manager || !manager.team_id) {
-        res.status(400).json({ error: 'Manager not assigned to a team' });
+      if (managedTeams.length === 0) {
+        res.status(400).json({ error: 'Manager not assigned to any team' });
         return;
       }
 
@@ -105,8 +110,8 @@ router.post(
 
       const newUser = await UserModel.create(userData);
 
-      // Assign employee to manager's team
-      await UserModel.update(newUser.id, { team_id: manager.team_id });
+      // Assign employee to manager's first team (default team)
+      await UserModel.update(newUser.id, { team_id: managedTeams[0].id });
 
       // Get updated user
       const updatedUser = await UserModel.findById(newUser.id);
@@ -123,11 +128,12 @@ router.post(
   }
 );
 
-// Update an employee (Manager only)
+// Update user profile
+// - Users can update their own profile
+// - Managers can update employees from their teams
 router.put(
   '/:id',
   authenticateToken,
-  requireManager,
   validate([
     { field: 'email', required: false, type: 'email' },
     { field: 'first_name', required: false, type: 'string', minLength: 2 },
@@ -149,15 +155,10 @@ router.put(
 
       const { email, first_name, last_name } = req.body;
 
-      // Get current manager
-      const manager = await UserModel.findById(req.user.id);
+      // Check if user is updating their own profile
+      const isOwnProfile = userId === req.user.id;
 
-      if (!manager || !manager.team_id) {
-        res.status(400).json({ error: 'Manager not assigned to a team' });
-        return;
-      }
-
-      // Check if user exists and is an employee
+      // Get user to update
       const userToUpdate = await UserModel.findById(userId);
 
       if (!userToUpdate) {
@@ -165,15 +166,37 @@ router.put(
         return;
       }
 
-      if (userToUpdate.role !== 'Employé') {
-        res.status(403).json({ error: 'Can only update employees' });
-        return;
-      }
+      // If not updating own profile, check manager permissions
+      if (!isOwnProfile) {
+        // Must be a manager
+        const currentUser = await UserModel.findById(req.user.id);
+        if (!currentUser || currentUser.role !== 'Manager') {
+          res.status(403).json({ error: 'Forbidden: Only managers can update other users' });
+          return;
+        }
 
-      // Check if employee belongs to manager's team
-      if (userToUpdate.team_id !== manager.team_id) {
-        res.status(403).json({ error: 'Can only update employees from your team' });
-        return;
+        // Can only update employees
+        if (userToUpdate.role !== 'Employé') {
+          res.status(403).json({ error: 'Can only update employees' });
+          return;
+        }
+
+        // Get teams managed by this manager
+        const { TeamModel } = await import('../models/Team.model');
+        const managedTeams = await TeamModel.findByManagerId(req.user.id);
+
+        if (managedTeams.length === 0) {
+          res.status(400).json({ error: 'Manager not assigned to any team' });
+          return;
+        }
+
+        const teamIds = managedTeams.map(t => t.id);
+
+        // Check if employee belongs to one of manager's teams
+        if (!userToUpdate.team_id || !teamIds.includes(userToUpdate.team_id)) {
+          res.status(403).json({ error: 'Can only update employees from your teams' });
+          return;
+        }
       }
 
       // Check if email is already taken by another user
@@ -200,7 +223,7 @@ router.put(
       const userResponse = UserModel.toResponse(updatedUser);
 
       res.status(200).json({
-        message: 'Employee updated successfully',
+        message: isOwnProfile ? 'Profile updated successfully' : 'Employee updated successfully',
         user: userResponse
       });
     } catch (error) {

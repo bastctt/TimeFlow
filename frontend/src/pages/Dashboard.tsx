@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { clocksApi } from '@/services/clocks';
+import { useClock } from '@/context/ClockContext';
+import { useMyClocks } from '@/hooks/useClocks';
 import ClockButton from '@/components/ClockButton';
-import type { UserClocks } from '@/types/clock';
 
 // icons
-import { User, Clock, Calendar, TrendingUp, Mail, BarChart3 } from 'lucide-react';
+import { User, Users, Clock, Calendar, TrendingUp, Mail, BarChart3 } from 'lucide-react';
 
 // shadcn/ui components
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,33 +13,17 @@ import { Badge } from '@/components/ui/badge';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [clockData, setClockData] = useState<UserClocks | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { lastClockUpdate } = useClock();
 
-  useEffect(() => {
-    if (user) {
-      loadClockData();
-    }
-  }, [user]);
+  // Get clocks for current month
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-  const loadClockData = async () => {
-    try {
-      // Get clocks for current month
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-      const data = await clocksApi.getMyClocks(
-        startOfMonth.toISOString(),
-        endOfMonth.toISOString()
-      );
-      setClockData(data);
-    } catch (err) {
-      console.error('Error loading clock data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: clockData, isLoading: loading } = useMyClocks(
+    startOfMonth.toISOString(),
+    endOfMonth.toISOString()
+  );
 
   if (!user) return null;
 
@@ -81,27 +65,29 @@ export default function Dashboard() {
             <ClockButton />
 
             {/* Profile Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Profil</CardTitle>
-                <CardDescription>Vos informations personnelles</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
-                    {user.first_name[0]}{user.last_name[0]}
+            <Link to="/profile">
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
+                <CardHeader>
+                  <CardTitle>Profil</CardTitle>
+                  <CardDescription>Vos informations personnelles</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
+                      {user.first_name[0]}{user.last_name[0]}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">{user.first_name} {user.last_name}</h3>
+                      <p className="text-sm text-muted-foreground">{user.role}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">{user.first_name} {user.last_name}</h3>
-                    <p className="text-sm text-muted-foreground">{user.role}</p>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    <span className="truncate">{user.email}</span>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <Mail className="w-4 h-4 text-muted-foreground" />
-                  <span className="truncate">{user.email}</span>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
 
           {/* Stats Grid */}
@@ -143,13 +129,14 @@ export default function Dashboard() {
                   {clockData.working_hours.slice(-7).map((item, index) => {
                     const date = new Date(item.date);
                     const dayName = date.toLocaleDateString('fr-FR', { weekday: 'long' });
+                    const dateFormatted = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
                     const maxHours = 10;
                     const percent = Math.min((item.hours_worked / maxHours) * 100, 100);
 
                     return (
                       <div key={index} className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="font-medium capitalize text-sm">{dayName} {date.getDate()}</span>
+                          <span className="font-medium capitalize text-sm">{dayName} {dateFormatted}</span>
                           <span className="text-sm font-semibold text-blue-600">{item.hours_worked.toFixed(1)}h</span>
                         </div>
                         <div className="w-full bg-secondary rounded-full h-3 overflow-hidden">
@@ -178,64 +165,66 @@ export default function Dashboard() {
       {/* Manager Dashboard */}
       {user.role === 'Manager' && (
         <>
+          {/* Top Section - Profile */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Profile Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Profil</CardTitle>
-                <CardDescription>Vos informations</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
-                    {user.first_name[0]}{user.last_name[0]}
+            <Link to="/profile">
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
+                <CardHeader>
+                  <CardTitle>Profil</CardTitle>
+                  <CardDescription>Vos informations</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
+                      {user.first_name[0]}{user.last_name[0]}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">{user.first_name} {user.last_name}</h3>
+                      <p className="text-sm text-muted-foreground">{user.role}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">{user.first_name} {user.last_name}</h3>
-                    <p className="text-sm text-muted-foreground">{user.role}</p>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    <span className="truncate">{user.email}</span>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <Mail className="w-4 h-4 text-muted-foreground" />
-                  <span className="truncate">{user.email}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Accès rapide</CardTitle>
-                <CardDescription>
-                  Gérez votre équipe et consultez les rapports
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
-                    <Users className="w-8 h-8 text-blue-500 mb-2" />
-                    <h4 className="font-semibold">Mon équipe</h4>
-                    <p className="text-sm text-muted-foreground">Gérer les membres</p>
-                  </div>
-                  <div className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
-                    <TrendingUp className="w-8 h-8 text-green-500 mb-2" />
-                    <h4 className="font-semibold">Rapports</h4>
-                    <p className="text-sm text-muted-foreground">Consulter les KPIs</p>
-                  </div>
-                  <div className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
-                    <Calendar className="w-8 h-8 text-purple-500 mb-2" />
-                    <h4 className="font-semibold">Planning</h4>
-                    <p className="text-sm text-muted-foreground">Voir les horaires</p>
-                  </div>
-                  <div className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
-                    <User className="w-8 h-8 text-orange-500 mb-2" />
-                    <h4 className="font-semibold">Utilisateurs</h4>
-                    <p className="text-sm text-muted-foreground">Gérer les employés</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
+
+          {/* Quick Actions - Full Width */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Accès rapide</CardTitle>
+              <CardDescription>
+                Gérez votre équipe et consultez les rapports
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Link to="/team" className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
+                  <Users className="w-8 h-8 text-blue-500 mb-2" />
+                  <h4 className="font-semibold">Mes équipes</h4>
+                  <p className="text-sm text-muted-foreground">Gérer les membres</p>
+                </Link>
+                <Link to="/reports" className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
+                  <TrendingUp className="w-8 h-8 text-green-500 mb-2" />
+                  <h4 className="font-semibold">Rapports</h4>
+                  <p className="text-sm text-muted-foreground">Consulter les KPIs</p>
+                </Link>
+                <Link to="/schedule" className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
+                  <Calendar className="w-8 h-8 text-purple-500 mb-2" />
+                  <h4 className="font-semibold">Planning</h4>
+                  <p className="text-sm text-muted-foreground">Voir les horaires</p>
+                </Link>
+                <Link to="/users" className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
+                  <User className="w-8 h-8 text-orange-500 mb-2" />
+                  <h4 className="font-semibold">Utilisateurs</h4>
+                  <p className="text-sm text-muted-foreground">Gérer les employés</p>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { QueryResult } from 'pg';
 import pool from '../config/database';
-import type { Clock, ClockCreate, WorkingHours, DailyReport, WeeklyReport } from '../types/clock';
+import type { Clock, ClockCreate, WorkingHours, DailyReport, WeeklyReport, AdvancedKPIs } from '../types/clock';
 
 export class ClockModel {
   /**
@@ -180,7 +180,7 @@ export class ClockModel {
 
     return result.rows.map(row => ({
       ...row,
-      hours_worked: parseFloat((row.hours_worked as any).toFixed(2))
+      hours_worked: row.hours_worked != null ? parseFloat(Number(row.hours_worked).toFixed(2)) : 0
     }));
   }
 
@@ -193,27 +193,40 @@ export class ClockModel {
     endDate: Date
   ): Promise<WeeklyReport[]> {
     const query = `
+      WITH daily_hours AS (
+        SELECT
+          u.id as user_id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          DATE(c.clock_time) as work_date,
+          DATE_TRUNC('week', c.clock_time)::date as week_start,
+          COALESCE(
+            EXTRACT(EPOCH FROM (
+              MAX(CASE WHEN c.status = 'check-out' THEN c.clock_time END) -
+              MIN(CASE WHEN c.status = 'check-in' THEN c.clock_time END)
+            )) / 3600,
+            0
+          ) as daily_hours
+        FROM users u
+        LEFT JOIN clocks c ON u.id = c.user_id
+          AND c.clock_time >= $2
+          AND c.clock_time <= $3
+        WHERE u.id = ANY($1)
+        GROUP BY u.id, u.first_name, u.last_name, u.email, DATE(c.clock_time), DATE_TRUNC('week', c.clock_time)
+      )
       SELECT
-        u.id as user_id,
-        u.first_name,
-        u.last_name,
-        u.email,
-        DATE_TRUNC('week', c.clock_time)::date as week_start,
-        (DATE_TRUNC('week', c.clock_time) + INTERVAL '6 days')::date as week_end,
-        COALESCE(SUM(
-          EXTRACT(EPOCH FROM (
-            MAX(CASE WHEN c.status = 'check-out' THEN c.clock_time END) -
-            MIN(CASE WHEN c.status = 'check-in' THEN c.clock_time END)
-          )) / 3600
-        ), 0) as total_hours,
-        COUNT(DISTINCT DATE(c.clock_time)) as days_worked
-      FROM users u
-      LEFT JOIN clocks c ON u.id = c.user_id
-        AND c.clock_time >= $2
-        AND c.clock_time <= $3
-      WHERE u.id = ANY($1)
-      GROUP BY u.id, u.first_name, u.last_name, u.email, DATE_TRUNC('week', c.clock_time)
-      ORDER BY week_start DESC, u.last_name ASC
+        user_id,
+        first_name,
+        last_name,
+        email,
+        week_start,
+        (week_start + INTERVAL '6 days')::date as week_end,
+        COALESCE(SUM(daily_hours), 0) as total_hours,
+        COUNT(DISTINCT work_date) as days_worked
+      FROM daily_hours
+      GROUP BY user_id, first_name, last_name, email, week_start
+      ORDER BY week_start DESC, last_name ASC
     `;
 
     const result: QueryResult = await pool.query(query, [userIds, startDate, endDate]);
@@ -225,10 +238,10 @@ export class ClockModel {
       email: row.email,
       week_start: row.week_start,
       week_end: row.week_end,
-      total_hours: parseFloat((row.total_hours as any).toFixed(2)),
-      average_daily_hours: parseFloat(
-        ((row.total_hours as any) / Math.max(row.days_worked, 1)).toFixed(2)
-      ),
+      total_hours: row.total_hours != null ? parseFloat(Number(row.total_hours).toFixed(2)) : 0,
+      average_daily_hours: row.days_worked > 0
+        ? parseFloat((Number(row.total_hours) / row.days_worked).toFixed(2))
+        : 0,
       days_worked: row.days_worked
     }));
   }
@@ -251,5 +264,158 @@ export class ClockModel {
     ]);
 
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  /**
+   * Calculate advanced KPIs for team
+   */
+  static async getAdvancedKPIs(
+    userIds: number[],
+    startDate: Date,
+    endDate: Date
+  ): Promise<AdvancedKPIs> {
+    // Calculate number of workdays (Monday-Friday) in period
+    const workdays = this.calculateWorkdays(startDate, endDate);
+
+    // Get all check-ins in the period
+    const checkInsQuery = `
+      SELECT
+        c.clock_time,
+        c.user_id,
+        DATE(c.clock_time) as date
+      FROM clocks c
+      WHERE c.user_id = ANY($1)
+        AND c.clock_time >= $2
+        AND c.clock_time <= $3
+        AND c.status = 'check-in'
+      ORDER BY c.clock_time ASC
+    `;
+
+    const checkInsResult = await pool.query(checkInsQuery, [userIds, startDate, endDate]);
+    const checkIns = checkInsResult.rows;
+
+    // Get employees currently clocked in (today)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const activeTodayQuery = `
+      WITH latest_clocks AS (
+        SELECT DISTINCT ON (user_id) user_id, status, clock_time
+        FROM clocks
+        WHERE user_id = ANY($1)
+          AND clock_time >= $2
+          AND clock_time < $3
+        ORDER BY user_id, clock_time DESC
+      )
+      SELECT COUNT(*) as count
+      FROM latest_clocks
+      WHERE status = 'check-in'
+    `;
+
+    const activeTodayResult = await pool.query(activeTodayQuery, [userIds, today, tomorrow]);
+    const activeEmployeesToday = parseInt(activeTodayResult.rows[0]?.count || '0');
+
+    // Calculate average check-in time
+    let averageCheckInTime: string | null = null;
+    if (checkIns.length > 0) {
+      const totalMinutes = checkIns.reduce((sum: number, row: any) => {
+        const time = new Date(row.clock_time);
+        return sum + (time.getHours() * 60 + time.getMinutes());
+      }, 0);
+      const avgMinutes = Math.round(totalMinutes / checkIns.length);
+      const hours = Math.floor(avgMinutes / 60);
+      const minutes = avgMinutes % 60;
+      averageCheckInTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+
+    // Calculate punctuality rate (check-ins before 9:30 AM)
+    const punctualCheckIns = checkIns.filter((row: any) => {
+      const time = new Date(row.clock_time);
+      const hour = time.getHours();
+      const minute = time.getMinutes();
+      return hour < 9 || (hour === 9 && minute <= 30);
+    }).length;
+
+    const punctualityRate = checkIns.length > 0
+      ? parseFloat(((punctualCheckIns / checkIns.length) * 100).toFixed(2))
+      : 0;
+
+    const lateArrivals = checkIns.length - punctualCheckIns;
+
+    // Get daily working hours for overtime calculation
+    const dailyHoursQuery = `
+      SELECT
+        DATE(c.clock_time) as date,
+        COALESCE(
+          EXTRACT(EPOCH FROM (
+            MAX(CASE WHEN c.status = 'check-out' THEN c.clock_time END) -
+            MIN(CASE WHEN c.status = 'check-in' THEN c.clock_time END)
+          )) / 3600,
+          0
+        ) as hours_worked
+      FROM clocks c
+      WHERE c.user_id = ANY($1)
+        AND c.clock_time >= $2
+        AND c.clock_time <= $3
+      GROUP BY DATE(c.clock_time)
+      HAVING MAX(CASE WHEN c.status = 'check-out' THEN c.clock_time END) IS NOT NULL
+    `;
+
+    const dailyHoursResult = await pool.query(dailyHoursQuery, [userIds, startDate, endDate]);
+
+    // Calculate overtime (hours beyond 8 per day)
+    const overtimeHours = dailyHoursResult.rows.reduce((sum: number, row: any) => {
+      const hoursWorked = parseFloat(row.hours_worked);
+      return sum + Math.max(0, hoursWorked - 8);
+    }, 0);
+
+    // Calculate unique dates worked
+    const uniqueDatesQuery = `
+      SELECT COUNT(DISTINCT DATE(c.clock_time)) as count
+      FROM clocks c
+      WHERE c.user_id = ANY($1)
+        AND c.clock_time >= $2
+        AND c.clock_time <= $3
+    `;
+
+    const uniqueDatesResult = await pool.query(uniqueDatesQuery, [userIds, startDate, endDate]);
+    const totalDaysWorked = parseInt(uniqueDatesResult.rows[0]?.count || '0');
+
+    // Calculate attendance rate
+    const attendanceRate = workdays > 0
+      ? parseFloat(((totalDaysWorked / (workdays * userIds.length)) * 100).toFixed(2))
+      : 0;
+
+    return {
+      attendance_rate: attendanceRate,
+      active_employees_today: activeEmployeesToday,
+      average_check_in_time: averageCheckInTime,
+      punctuality_rate: punctualityRate,
+      overtime_hours: parseFloat(overtimeHours.toFixed(2)),
+      total_workdays: workdays,
+      total_days_worked: totalDaysWorked,
+      late_arrivals: lateArrivals
+    };
+  }
+
+  /**
+   * Calculate number of workdays (Monday-Friday) between two dates
+   */
+  private static calculateWorkdays(startDate: Date, endDate: Date): number {
+    let count = 0;
+    const current = new Date(startDate);
+
+    while (current <= endDate) {
+      const dayOfWeek = current.getDay();
+      // 0 = Sunday, 6 = Saturday
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        count++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return count;
   }
 }

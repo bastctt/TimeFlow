@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
 
 // context
 import { useAuth } from '@/context/AuthContext';
@@ -10,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 import TimeFlowLogo from '@/assets/Logo.svg?react';
 
@@ -18,7 +18,6 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
@@ -26,14 +25,14 @@ export default function Login() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
       await login({ email, password });
+      toast.success('Connexion réussie !');
       navigate('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      toast.error(err instanceof Error ? err.message : 'Une erreur est survenue');
     } finally {
       setLoading(false);
     }
@@ -62,12 +61,6 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {error && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>

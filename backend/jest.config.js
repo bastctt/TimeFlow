@@ -2,10 +2,9 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
-  testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
-  transform: {
-    '^.+\\.ts$': 'ts-jest',
-  },
+  testMatch: ['**/__tests__/**/*.test.ts'],
+  testPathIgnorePatterns: ['/node_modules/', '/__mocks__/', '/setup\\.'],
+  setupFiles: ['<rootDir>/jest.setup.js'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',

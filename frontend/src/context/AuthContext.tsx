@@ -44,8 +44,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const response = await axios.get<{ user: User }>(`${API_URL}/api/auth/me`);
           setUser(response.data.user);
-        } catch (error) {
+        } catch (err) {
           // Token invalid, clear it
+          console.error('Failed to fetch user:', err);
           Cookies.remove('token');
           delete axios.defaults.headers.common['Authorization'];
         }
@@ -60,7 +61,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await axios.get<{ user: User }>(`${API_URL}/api/auth/me`);
       setUser(response.data.user);
-    } catch (error) {
+    } catch (err) {
+      console.error('Failed to fetch user:', err);
       throw new Error('Failed to fetch user data');
     }
   };

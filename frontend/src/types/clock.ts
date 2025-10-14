@@ -54,6 +54,17 @@ export interface WeeklyReport {
   days_worked: number;
 }
 
+export interface AdvancedKPIs {
+  attendance_rate: number;
+  active_employees_today: number;
+  average_check_in_time: string | null;
+  punctuality_rate: number;
+  overtime_hours: number;
+  total_workdays: number;
+  total_days_worked: number;
+  late_arrivals: number;
+}
+
 export interface TeamReport {
   team_id: number;
   team_name: string;
@@ -64,6 +75,7 @@ export interface TeamReport {
   average_hours_per_employee: number;
   daily_reports?: DailyReport[];
   weekly_reports?: WeeklyReport[];
+  advanced_kpis?: AdvancedKPIs;
 }
 
 export interface EmployeeReport {

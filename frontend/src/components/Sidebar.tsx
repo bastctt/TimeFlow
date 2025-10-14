@@ -46,7 +46,7 @@ export default function Sidebar() {
 
   const managerLinks = [
     { path: '/dashboard', label: 'Tableau de bord', Icon: LayoutDashboard },
-    { path: '/team', label: 'Mon équipe', Icon: Users },
+    { path: '/team', label: 'Mes équipes', Icon: Users },
     { path: '/users', label: 'Gestion des utilisateurs', Icon: UserCog },
     { path: '/reports', label: 'Rapports', Icon: TrendingUp },
     { path: '/schedule', label: 'Planning', Icon: Calendar },

@@ -37,5 +37,15 @@ export const teamsApi = {
   // Delete team
   delete: async (id: number): Promise<void> => {
     await axios.delete(`${API_URL}/api/teams/${id}`);
+  },
+
+  // Add employee to team
+  addMember: async (teamId: number, userId: number): Promise<void> => {
+    await axios.post(`${API_URL}/api/teams/${teamId}/members`, { user_id: userId });
+  },
+
+  // Remove employee from team
+  removeMember: async (teamId: number, userId: number): Promise<void> => {
+    await axios.delete(`${API_URL}/api/teams/${teamId}/members/${userId}`);
   }
 };

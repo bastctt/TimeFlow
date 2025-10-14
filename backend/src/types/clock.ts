@@ -47,6 +47,17 @@ export interface WeeklyReport {
   days_worked: number;
 }
 
+export interface AdvancedKPIs {
+  attendance_rate: number; // Percentage of days worked vs workdays in period
+  active_employees_today: number; // Number of employees currently clocked in
+  average_check_in_time: string | null; // Average check-in time (HH:MM format)
+  punctuality_rate: number; // Percentage of check-ins before 9:30 AM
+  overtime_hours: number; // Total hours beyond 8h/day
+  total_workdays: number; // Number of workdays in period
+  total_days_worked: number; // Total days with at least one clock entry
+  late_arrivals: number; // Number of check-ins after 9:30 AM
+}
+
 export interface TeamReport {
   team_id: number;
   team_name: string;
@@ -57,4 +68,5 @@ export interface TeamReport {
   average_hours_per_employee: number;
   daily_reports?: DailyReport[];
   weekly_reports?: WeeklyReport[];
+  advanced_kpis?: AdvancedKPIs;
 }

@@ -5,13 +5,11 @@ import { Home, AlertCircle } from 'lucide-react';
 
 // ui
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <Card className="text-center shadow-2xl">
           <div className="space-y-6">
             <div className="flex justify-center">
               <div className="w-24 h-24 bg-destructive rounded-full flex items-center justify-center shadow-lg">
@@ -40,7 +38,6 @@ export default function NotFound() {
               </Link>
             </div>
           </div>
-        </Card>
       </div>
     </div>
   );

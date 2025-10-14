@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { reportsApi } from '@/services/clocks';
-import type { TeamReport } from '@/types/clock';
+import { useTeamReport } from '@/hooks/useReports';
 
 // icons
-import { BarChart3, Calendar, Clock, TrendingUp, Users, Download } from 'lucide-react';
+import { BarChart3, Calendar, Clock, TrendingUp, Users, Download, Target, UserCheck, AlarmClock, Zap, Award, AlertTriangle } from 'lucide-react';
 
 // shadcn/ui components
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,52 +19,34 @@ import {
 
 export default function Reports() {
   const { user } = useAuth();
-  const [report, setReport] = useState<TeamReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [period, setPeriod] = useState<'week' | 'month' | 'custom'>('month');
 
-  useEffect(() => {
-    if (user && user.role === 'Manager') {
-      loadReport();
+  // Calculate date range based on period
+  const { startDate, endDate } = useMemo(() => {
+    const now = new Date();
+    let start: Date;
+    let end: Date = now;
+
+    if (period === 'week') {
+      start = new Date();
+      start.setDate(now.getDate() - 7);
+    } else if (period === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    } else {
+      // Last 30 days
+      start = new Date();
+      start.setDate(now.getDate() - 30);
     }
-  }, [user, period]);
 
-  const loadReport = async () => {
-    try {
-      setLoading(true);
-      setError('');
+    return {
+      startDate: start.toISOString(),
+      endDate: end.toISOString()
+    };
+  }, [period]);
 
-      const now = new Date();
-      let startDate: Date;
-      let endDate: Date = now;
-
-      if (period === 'week') {
-        startDate = new Date();
-        startDate.setDate(now.getDate() - 7);
-      } else if (period === 'month') {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      } else {
-        // Last 30 days
-        startDate = new Date();
-        startDate.setDate(now.getDate() - 30);
-      }
-
-      const data = await reportsApi.getTeamReport(
-        'team',
-        startDate.toISOString(),
-        endDate.toISOString()
-      );
-
-      setReport(data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Erreur lors du chargement du rapport');
-      console.error('Error loading report:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Query
+  const { data: report, isLoading: loading } = useTeamReport('team', startDate, endDate);
 
   if (!user || user.role !== 'Manager') {
     return (
@@ -102,7 +83,7 @@ export default function Reports() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Select value={period} onValueChange={(value: any) => setPeriod(value)}>
+          <Select value={period} onValueChange={(value) => setPeriod(value as 'week' | 'month' | 'custom')}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Sélectionner période" />
             </SelectTrigger>
@@ -119,12 +100,6 @@ export default function Reports() {
           </Button>
         </div>
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {report && (
         <>
@@ -182,6 +157,138 @@ export default function Reports() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Advanced KPIs Section */}
+          {report.advanced_kpis && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="w-5 h-5" />
+                    KPIs Avancés
+                  </CardTitle>
+                  <CardDescription>
+                    Indicateurs de performance détaillés pour votre équipe
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Attendance Rate */}
+                    <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950">
+                      <div className="flex items-center justify-between mb-2">
+                        <UserCheck className="w-5 h-5 text-blue-600" />
+                        <span className="text-2xl font-bold text-blue-700">
+                          {report.advanced_kpis.attendance_rate.toFixed(1)}%
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Taux de présence</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        {report.advanced_kpis.total_days_worked} / {report.advanced_kpis.total_workdays * report.total_employees} jours-employés
+                      </p>
+                    </div>
+
+                    {/* Active Today */}
+                    <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950">
+                      <div className="flex items-center justify-between mb-2">
+                        <Zap className="w-5 h-5 text-green-600" />
+                        <span className="text-2xl font-bold text-green-700">
+                          {report.advanced_kpis.active_employees_today}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-green-900 dark:text-green-100">Actifs aujourd'hui</p>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                        sur {report.total_employees} employés
+                      </p>
+                    </div>
+
+                    {/* Average Check-in Time */}
+                    <div className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-950">
+                      <div className="flex items-center justify-between mb-2">
+                        <AlarmClock className="w-5 h-5 text-purple-600" />
+                        <span className="text-2xl font-bold text-purple-700">
+                          {report.advanced_kpis.average_check_in_time || '-'}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-purple-900 dark:text-purple-100">Arrivée moyenne</p>
+                      <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                        Horaire moyen de pointage
+                      </p>
+                    </div>
+
+                    {/* Punctuality Rate */}
+                    <div className="p-4 border rounded-lg bg-teal-50 dark:bg-teal-950">
+                      <div className="flex items-center justify-between mb-2">
+                        <Award className="w-5 h-5 text-teal-600" />
+                        <span className="text-2xl font-bold text-teal-700">
+                          {report.advanced_kpis.punctuality_rate.toFixed(1)}%
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-teal-900 dark:text-teal-100">Ponctualité</p>
+                      <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">
+                        Arrivées avant 9h30
+                      </p>
+                    </div>
+
+                    {/* Late Arrivals */}
+                    <div className="p-4 border rounded-lg bg-orange-50 dark:bg-orange-950">
+                      <div className="flex items-center justify-between mb-2">
+                        <AlertTriangle className="w-5 h-5 text-orange-600" />
+                        <span className="text-2xl font-bold text-orange-700">
+                          {report.advanced_kpis.late_arrivals}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-orange-900 dark:text-orange-100">Retards</p>
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        Arrivées après 9h30
+                      </p>
+                    </div>
+
+                    {/* Overtime Hours */}
+                    <div className="p-4 border rounded-lg bg-indigo-50 dark:bg-indigo-950">
+                      <div className="flex items-center justify-between mb-2">
+                        <Clock className="w-5 h-5 text-indigo-600" />
+                        <span className="text-2xl font-bold text-indigo-700">
+                          {report.advanced_kpis.overtime_hours.toFixed(1)}h
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Heures supp.</p>
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
+                        Au-delà de 8h/jour
+                      </p>
+                    </div>
+
+                    {/* Total Workdays */}
+                    <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-900">
+                      <div className="flex items-center justify-between mb-2">
+                        <Calendar className="w-5 h-5 text-slate-600" />
+                        <span className="text-2xl font-bold text-slate-700 dark:text-slate-300">
+                          {report.advanced_kpis.total_workdays}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Jours ouvrés</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                        Dans la période
+                      </p>
+                    </div>
+
+                    {/* Days Worked */}
+                    <div className="p-4 border rounded-lg bg-emerald-50 dark:bg-emerald-950">
+                      <div className="flex items-center justify-between mb-2">
+                        <TrendingUp className="w-5 h-5 text-emerald-600" />
+                        <span className="text-2xl font-bold text-emerald-700">
+                          {report.advanced_kpis.total_days_worked}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Jours travaillés</p>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                        Total équipe
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
           {/* Weekly Reports Table */}
           {report.weekly_reports && report.weekly_reports.length > 0 && (

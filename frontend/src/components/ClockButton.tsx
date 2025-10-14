@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useClock } from '@/context/ClockContext';
 import { clocksApi } from '@/services/clocks';
 import type { ClockStatus } from '@/types/clock';
+import { toast } from 'sonner';
 
 // icons
 import { Clock, LogIn, LogOut, Loader2 } from 'lucide-react';
@@ -9,14 +11,12 @@ import { Clock, LogIn, LogOut, Loader2 } from 'lucide-react';
 // shadcn/ui components
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function ClockButton() {
   const { user } = useAuth();
+  const { notifyClockChange } = useClock();
   const [status, setStatus] = useState<ClockStatus | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -28,7 +28,7 @@ export default function ClockButton() {
     try {
       const data = await clocksApi.getStatus();
       setStatus(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading clock status:', err);
     }
   };
@@ -38,14 +38,12 @@ export default function ClockButton() {
 
     try {
       setLoading(true);
-      setError('');
-      setSuccess('');
 
       const newStatus = status.is_clocked_in ? 'check-out' : 'check-in';
 
       await clocksApi.clockIn({ status: newStatus });
 
-      setSuccess(
+      toast.success(
         newStatus === 'check-in'
           ? 'Pointage d\'arrivée enregistré !'
           : 'Pointage de départ enregistré !'
@@ -54,10 +52,11 @@ export default function ClockButton() {
       // Reload status
       await loadStatus();
 
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Erreur lors du pointage');
+      // Notify other components of the change
+      notifyClockChange();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      toast.error(error?.response?.data?.error || 'Erreur lors du pointage');
     } finally {
       setLoading(false);
     }
@@ -77,6 +76,11 @@ export default function ClockButton() {
       })
     : null;
 
+  // Check if we already have a complete session today (check-out done)
+  const hasCompletedSessionToday = !isClockedIn && status.last_clock &&
+    status.last_clock.status === 'check-out' &&
+    new Date(status.last_clock.clock_time).toDateString() === new Date().toDateString();
+
   return (
     <Card>
       <CardHeader>
@@ -85,33 +89,25 @@ export default function ClockButton() {
           Pointage
         </CardTitle>
         <CardDescription>
-          {isClockedIn
-            ? `Vous êtes pointé depuis ${lastClockTime}`
-            : lastClockTime
-              ? `Dernier pointage de départ : ${lastClockTime}`
-              : 'Aucun pointage aujourd\'hui'}
+          {hasCompletedSessionToday
+            ? `Session terminée à ${lastClockTime}`
+            : isClockedIn
+              ? `Vous êtes pointé depuis ${lastClockTime}`
+              : lastClockTime
+                ? `Dernier pointage de départ : ${lastClockTime}`
+                : 'Aucun pointage aujourd\'hui'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {success && (
-          <Alert className="border-green-500 text-green-700">
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
-
         <Button
           onClick={handleClock}
-          disabled={loading}
+          disabled={loading || hasCompletedSessionToday}
           className={`w-full ${
-            isClockedIn
-              ? 'bg-red-500 hover:bg-red-600'
-              : 'bg-green-500 hover:bg-green-600'
+            hasCompletedSessionToday
+              ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed'
+              : isClockedIn
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-green-500 hover:bg-green-600'
           }`}
           size="lg"
         >
@@ -119,6 +115,11 @@ export default function ClockButton() {
             <>
               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
               Chargement...
+            </>
+          ) : hasCompletedSessionToday ? (
+            <>
+              <Clock className="w-5 h-5 mr-2" />
+              Session déjà pointée
             </>
           ) : isClockedIn ? (
             <>
@@ -134,8 +135,8 @@ export default function ClockButton() {
         </Button>
 
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <div className={`w-3 h-3 rounded-full ${isClockedIn ? 'bg-green-500' : 'bg-gray-400'}`} />
-          <span>{isClockedIn ? 'Présent' : 'Absent'}</span>
+          <div className={`w-3 h-3 rounded-full ${hasCompletedSessionToday ? 'bg-blue-500' : isClockedIn ? 'bg-green-500' : 'bg-gray-400'}`} />
+          <span>{hasCompletedSessionToday ? 'Session terminée' : isClockedIn ? 'Présent' : 'Absent'}</span>
         </div>
       </CardContent>
     </Card>
