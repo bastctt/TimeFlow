@@ -39,8 +39,12 @@ export function useClockInOut() {
     onSuccess: () => {
       // Invalidate all clock-related queries to refetch from server
       queryClient.invalidateQueries({ queryKey: queryKeys.clocks.status });
-      queryClient.invalidateQueries({ queryKey: queryKeys.clocks.my() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+
+      // Invalidate ALL clocks queries (including Planning weeks with specific dates)
+      queryClient.invalidateQueries({ queryKey: ['clocks'] });
+
+      // Invalidate users queries (for manager view showing team member clocks)
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (_error, _variables, context) => {
       // Rollback optimistic update on error

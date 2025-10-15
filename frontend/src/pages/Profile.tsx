@@ -91,7 +91,7 @@ export default function Profile() {
           {user.first_name[0]}{user.last_name[0]}
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Mon Profil</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Mon profil</h1>
           <p className="text-muted-foreground mt-1">Gérez vos informations personnelles</p>
         </div>
       </div>

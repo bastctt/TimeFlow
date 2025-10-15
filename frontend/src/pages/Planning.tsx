@@ -95,7 +95,7 @@ export default function Planning() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Mon Planning</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Mon planning</h1>
             <p className="text-muted-foreground mt-1">
               Consultez et gérez vos horaires de travail
             </p>

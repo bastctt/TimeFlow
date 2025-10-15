@@ -30,7 +30,7 @@ export default function ClockButton() {
               : 'Pointage de départ enregistré !'
           );
         },
-        onError: (err: any) => {
+        onError: (err: unknown) => {
           const error = err as { response?: { data?: { error?: string } } };
           toast.error(error?.response?.data?.error || 'Erreur lors du pointage');
         },

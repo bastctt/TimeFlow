@@ -21,9 +21,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: timemanager_test
+          POSTGRES_USER: ${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.DB_NAME }}
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
@@ -44,11 +44,11 @@ jobs:
         run: npm test
         env:
           DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: timemanager_test
-          DB_USER: postgres
-          DB_PASSWORD: postgres
-          JWT_SECRET: test-secret
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           NODE_ENV: test
 
   frontend:
@@ -70,7 +70,7 @@ jobs:
       - name: Install & Build
         run: npm ci && npm run build
         env:
-          VITE_API_URL: http://localhost:3000
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       - name: Lint
         run: npm run lint

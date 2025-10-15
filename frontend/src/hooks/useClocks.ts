@@ -1,7 +1,8 @@
-import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { clocksApi } from '@/services/clocks';
 import { queryKeys } from '@/lib/queryKeys';
+import type { UserClocks } from '@/types/clock';
 
 export function useClockStatus() {
   return useQuery({
@@ -21,7 +22,7 @@ export function useMyClocks(startDate: string, endDate: string) {
     queryFn: () => clocksApi.getMyClocks(startDate, endDate),
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
-    refetchOnMount: false,
+    refetchOnMount: true, // Refetch if data is stale (invalidated after clock in/out)
     refetchOnWindowFocus: true,
   });
 }
@@ -72,6 +73,8 @@ export function usePlanningClocks(currentWeek: Date, isEmployee: boolean) {
         queryFn: () => clocksApi.getMyClocks(weekRanges.prev.start, weekRanges.prev.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnWindowFocus: false,
         enabled: isEmployee,
       },
       {
@@ -79,6 +82,8 @@ export function usePlanningClocks(currentWeek: Date, isEmployee: boolean) {
         queryFn: () => clocksApi.getMyClocks(weekRanges.current.start, weekRanges.current.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnWindowFocus: false,
         enabled: isEmployee,
       },
       {
@@ -86,6 +91,8 @@ export function usePlanningClocks(currentWeek: Date, isEmployee: boolean) {
         queryFn: () => clocksApi.getMyClocks(weekRanges.next.start, weekRanges.next.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnWindowFocus: false,
         enabled: isEmployee,
       },
       {
@@ -93,6 +100,8 @@ export function usePlanningClocks(currentWeek: Date, isEmployee: boolean) {
         queryFn: () => clocksApi.getMyClocks(weekRanges.today.start, weekRanges.today.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnWindowFocus: false,
         enabled: isEmployee,
       },
     ],
@@ -140,6 +149,8 @@ export function useTeamPlanningClocks(
         queryFn: () => clocksApi.getUserClocks(member.id, weekRanges.prev.start, weekRanges.prev.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnWindowFocus: false,
         enabled: isManager && members.length > 0,
       },
       {
@@ -147,6 +158,8 @@ export function useTeamPlanningClocks(
         queryFn: () => clocksApi.getUserClocks(member.id, weekRanges.current.start, weekRanges.current.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnWindowFocus: false,
         enabled: isManager && members.length > 0,
       },
       {
@@ -154,6 +167,8 @@ export function useTeamPlanningClocks(
         queryFn: () => clocksApi.getUserClocks(member.id, weekRanges.next.start, weekRanges.next.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnWindowFocus: false,
         enabled: isManager && members.length > 0,
       },
       {
@@ -161,13 +176,15 @@ export function useTeamPlanningClocks(
         queryFn: () => clocksApi.getUserClocks(member.id, weekRanges.today.start, weekRanges.today.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnWindowFocus: false,
         enabled: isManager && members.length > 0,
       },
     ]),
   });
 
   return useMemo(() => {
-    const clockData: { [userId: number]: any } = {};
+    const clockData: { [userId: number]: UserClocks } = {};
     members.forEach((member, index) => {
       // Get current week data (index * 4 + 1)
       const currentWeekQuery = teamQueries[index * 4 + 1];

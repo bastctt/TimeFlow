@@ -45,12 +45,42 @@ export function useDeleteUser() {
 
   return useMutation({
     mutationFn: (id: number) => usersApi.delete(id),
+    // Optimistic update
+    onMutate: async (userId) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.users.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.users.employees });
+
+      // Snapshot previous values
+      const previousUsers = queryClient.getQueryData<any[]>(queryKeys.users.all);
+      const previousEmployees = queryClient.getQueryData<any[]>(queryKeys.users.employees);
+
+      // Optimistically remove user from lists
+      if (previousUsers) {
+        const updatedUsers = previousUsers.filter((user: any) => user.id !== userId);
+        queryClient.setQueryData(queryKeys.users.all, updatedUsers);
+      }
+      if (previousEmployees) {
+        const updatedEmployees = previousEmployees.filter((user: any) => user.id !== userId);
+        queryClient.setQueryData(queryKeys.users.employees, updatedEmployees);
+      }
+
+      return { previousUsers, previousEmployees };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.employees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.teams.all });
       toast.success('Utilisateur supprimé avec succès');
     },
-    onError: () => {
+    onError: (_error, _userId, context) => {
+      // Rollback on error
+      if (context?.previousUsers) {
+        queryClient.setQueryData(queryKeys.users.all, context.previousUsers);
+      }
+      if (context?.previousEmployees) {
+        queryClient.setQueryData(queryKeys.users.employees, context.previousEmployees);
+      }
       toast.error('Erreur lors de la suppression de l\'utilisateur');
     },
   });

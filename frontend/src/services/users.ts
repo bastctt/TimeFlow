@@ -47,7 +47,7 @@ export const usersApi = {
   },
 
   // Get user clocks
-  getUserClocks: async (userId: number, startDate?: string, endDate?: string): Promise<any> => {
+  getUserClocks: async (userId: number, startDate?: string, endDate?: string): Promise<void> => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);

@@ -1,5 +1,5 @@
-import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { reportsApi } from '@/services/clocks';
 import { queryKeys } from '@/lib/queryKeys';
 
@@ -29,7 +29,6 @@ export function calculateReportDateRange(period: 'week' | 'month' | 'custom'): {
 
 // Hook to load all report periods at once with useQueries
 export function useAllReportPeriods() {
-  const queryClient = useQueryClient();
 
   // Calculate all date ranges once
   const dateRanges = useMemo(() => ({
@@ -46,18 +45,24 @@ export function useAllReportPeriods() {
         queryFn: () => reportsApi.getTeamReport('team', dateRanges.week.startDate, dateRanges.week.endDate),
         staleTime: 1000 * 60 * 5, // 5 minutes
         gcTime: 1000 * 60 * 30, // 30 minutes
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
       },
       {
         queryKey: queryKeys.reports.team('team', dateRanges.month.startDate, dateRanges.month.endDate),
         queryFn: () => reportsApi.getTeamReport('team', dateRanges.month.startDate, dateRanges.month.endDate),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
       },
       {
         queryKey: queryKeys.reports.team('team', dateRanges.custom.startDate, dateRanges.custom.endDate),
         queryFn: () => reportsApi.getTeamReport('team', dateRanges.custom.startDate, dateRanges.custom.endDate),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
       },
     ],
   });

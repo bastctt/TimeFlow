@@ -3,11 +3,17 @@ import type { ReactNode } from 'react';
 // components
 import Sidebar from './Sidebar';
 
+// hooks
+import { usePrefetchData } from '@/hooks/usePrefetchData';
+
 interface LayoutProps {
   children: ReactNode;
 }
 
 export default function Layout({ children }: LayoutProps) {
+  // Prefetch all data when user is authenticated to eliminate flash on first navigation
+  usePrefetchData();
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar />
