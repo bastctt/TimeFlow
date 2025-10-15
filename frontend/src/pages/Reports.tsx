@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useTeamReport } from '@/hooks/useReports';
+import { useAllReportPeriods } from '@/hooks/useReports';
+import { toast } from 'sonner';
 
 // icons
 import { BarChart3, Calendar, Clock, TrendingUp, Users, Download, Target, UserCheck, AlarmClock, Zap, Award, AlertTriangle } from 'lucide-react';
@@ -16,37 +17,169 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function Reports() {
   const { user } = useAuth();
   const [period, setPeriod] = useState<'week' | 'month' | 'custom'>('month');
 
-  // Calculate date range based on period
-  const { startDate, endDate } = useMemo(() => {
-    const now = new Date();
-    let start: Date;
-    let end: Date = now;
+  // Load all report periods at once
+  const allReports = useAllReportPeriods();
 
-    if (period === 'week') {
-      start = new Date();
-      start.setDate(now.getDate() - 7);
-    } else if (period === 'month') {
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    } else {
-      // Last 30 days
-      start = new Date();
-      start.setDate(now.getDate() - 30);
+  // Get the current report based on selected period
+  const report = period === 'week' ? allReports.week : period === 'month' ? allReports.month : allReports.custom;
+
+  // Export functions
+  const exportToCSV = () => {
+    if (!report) {
+      toast.error('Aucune donnée à exporter');
+      return;
     }
 
-    return {
-      startDate: start.toISOString(),
-      endDate: end.toISOString()
-    };
-  }, [period]);
+    try {
+      let csv = 'Type,Employé,Email,Date/Semaine,Arrivée,Départ,Heures\n';
 
-  // Query
-  const { data: report, isLoading: loading } = useTeamReport('team', startDate, endDate);
+      // Add daily reports
+      if (report.daily_reports && report.daily_reports.length > 0) {
+        report.daily_reports.forEach(dr => {
+          csv += `Journalier,"${dr.first_name} ${dr.last_name}","${dr.email}",`;
+          csv += `${dr.date ? new Date(dr.date).toLocaleDateString('fr-FR') : '-'},`;
+          csv += `${dr.check_in ? new Date(dr.check_in).toLocaleTimeString('fr-FR') : '-'},`;
+          csv += `${dr.check_out ? new Date(dr.check_out).toLocaleTimeString('fr-FR') : '-'},`;
+          csv += `${dr.hours_worked.toFixed(1)}\n`;
+        });
+      }
+
+      // Add weekly reports
+      if (report.weekly_reports && report.weekly_reports.length > 0) {
+        report.weekly_reports.forEach(wr => {
+          csv += `Hebdomadaire,"${wr.first_name} ${wr.last_name}","${wr.email}",`;
+          csv += `"${new Date(wr.week_start).toLocaleDateString('fr-FR')} - ${new Date(wr.week_end).toLocaleDateString('fr-FR')}",`;
+          csv += `-,-,${wr.total_hours.toFixed(1)}\n`;
+        });
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `rapport_${period}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('Export CSV réussi');
+    } catch (error) {
+      toast.error('Erreur lors de l\'export CSV');
+      console.error(error)
+    }
+  };
+
+  const exportToJSON = () => {
+    if (!report) {
+      toast.error('Aucune donnée à exporter');
+      return;
+    }
+
+    try {
+      const dataStr = JSON.stringify(report, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `rapport_${period}_${new Date().toISOString().split('T')[0]}.json`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('Export JSON réussi');
+    } catch (error) {
+      toast.error('Erreur lors de l\'export JSON');
+      console.error(error)
+    }
+  };
+
+  const exportToExcel = () => {
+    if (!report) {
+      toast.error('Aucune donnée à exporter');
+      return;
+    }
+
+    try {
+      // Create Excel-compatible HTML table
+      let html = '<html><head><meta charset="utf-8"></head><body>';
+      html += '<table border="1">';
+
+      // Header
+      html += '<tr><th>Type</th><th>Employé</th><th>Email</th><th>Date/Semaine</th><th>Arrivée</th><th>Départ</th><th>Heures</th></tr>';
+
+      // Daily reports
+      if (report.daily_reports && report.daily_reports.length > 0) {
+        report.daily_reports.forEach(dr => {
+          html += '<tr>';
+          html += '<td>Journalier</td>';
+          html += `<td>${dr.first_name} ${dr.last_name}</td>`;
+          html += `<td>${dr.email}</td>`;
+          html += `<td>${dr.date ? new Date(dr.date).toLocaleDateString('fr-FR') : '-'}</td>`;
+          html += `<td>${dr.check_in ? new Date(dr.check_in).toLocaleTimeString('fr-FR') : '-'}</td>`;
+          html += `<td>${dr.check_out ? new Date(dr.check_out).toLocaleTimeString('fr-FR') : '-'}</td>`;
+          html += `<td>${dr.hours_worked.toFixed(1)}</td>`;
+          html += '</tr>';
+        });
+      }
+
+      // Weekly reports
+      if (report.weekly_reports && report.weekly_reports.length > 0) {
+        report.weekly_reports.forEach(wr => {
+          html += '<tr>';
+          html += '<td>Hebdomadaire</td>';
+          html += `<td>${wr.first_name} ${wr.last_name}</td>`;
+          html += `<td>${wr.email}</td>`;
+          html += `<td>${new Date(wr.week_start).toLocaleDateString('fr-FR')} - ${new Date(wr.week_end).toLocaleDateString('fr-FR')}</td>`;
+          html += '<td>-</td><td>-</td>';
+          html += `<td>${wr.total_hours.toFixed(1)}</td>`;
+          html += '</tr>';
+        });
+      }
+
+      html += '</table></body></html>';
+
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `rapport_${period}_${new Date().toISOString().split('T')[0]}.xls`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('Export Excel réussi');
+    } catch (error) {
+      toast.error('Erreur lors de l\'export Excel');
+      console.error(error)
+    }
+  };
+
+  // Default data structure to prevent flash
+  const displayReport = report || {
+    team_name: '',
+    total_employees: 0,
+    total_hours: 0,
+    average_hours_per_employee: 0,
+    period_start: new Date().toISOString(),
+    period_end: new Date().toISOString(),
+    weekly_reports: [],
+    daily_reports: [],
+    advanced_kpis: null,
+  };
 
   if (!user || user.role !== 'Manager') {
     return (
@@ -63,14 +196,6 @@ export default function Reports() {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Chargement des rapports...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -78,7 +203,7 @@ export default function Reports() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Rapports d'équipe</h1>
           <p className="text-muted-foreground mt-1">
-            {report ? report.team_name : 'Analyse des performances'}
+            {displayReport.team_name || 'Analyse des performances'}
           </p>
         </div>
 
@@ -94,62 +219,80 @@ export default function Reports() {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Exporter
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={!report || allReports.isLoading}>
+                <Download className="w-4 h-4 mr-2" />
+                Exporter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportToCSV}>
+                <Download className="w-4 h-4 mr-2" />
+                Exporter en CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportToExcel}>
+                <Download className="w-4 h-4 mr-2" />
+                Exporter en Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportToJSON}>
+                <Download className="w-4 h-4 mr-2" />
+                Exporter en JSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      {report && (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Employés</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{report.total_employees}</div>
-              </CardContent>
-            </Card>
+      {/* Always show content, use displayReport instead of report */}
+      <>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Employés</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{displayReport.total_employees}</div>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Heures Totales</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{report.total_hours.toFixed(1)}h</div>
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Heures Totales</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{displayReport.total_hours.toFixed(1)}h</div>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Moyenne par Employé</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {report.average_hours_per_employee.toFixed(1)}h
-                </div>
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Moyenne par Employé</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {displayReport.average_hours_per_employee.toFixed(1)}h
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Période</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm font-medium">
-                  {new Date(report.period_start).toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: 'short'
-                  })}
-                  {' - '}
-                  {new Date(report.period_end).toLocaleDateString('fr-FR', {
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Période</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm font-medium">
+                {new Date(displayReport.period_start).toLocaleDateString('fr-FR', {
+                  day: '2-digit',
+                  month: 'short'
+                })}
+                {' - '}
+                {new Date(displayReport.period_end).toLocaleDateString('fr-FR', {
                     day: '2-digit',
                     month: 'short'
                   })}
@@ -159,7 +302,7 @@ export default function Reports() {
           </div>
 
           {/* Advanced KPIs Section */}
-          {report.advanced_kpis && (
+          {displayReport.advanced_kpis && (
             <>
               <Card>
                 <CardHeader>
@@ -178,12 +321,12 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <UserCheck className="w-5 h-5 text-blue-600" />
                         <span className="text-2xl font-bold text-blue-700">
-                          {report.advanced_kpis.attendance_rate.toFixed(1)}%
+                          {displayReport.advanced_kpis.attendance_rate.toFixed(1)}%
                         </span>
                       </div>
                       <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Taux de présence</p>
                       <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        {report.advanced_kpis.total_days_worked} / {report.advanced_kpis.total_workdays * report.total_employees} jours-employés
+                        {displayReport.advanced_kpis.total_days_worked} / {displayReport.advanced_kpis.total_workdays * displayReport.total_employees} jours-employés
                       </p>
                     </div>
 
@@ -192,12 +335,12 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <Zap className="w-5 h-5 text-green-600" />
                         <span className="text-2xl font-bold text-green-700">
-                          {report.advanced_kpis.active_employees_today}
+                          {displayReport.advanced_kpis.active_employees_today}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-green-900 dark:text-green-100">Actifs aujourd'hui</p>
                       <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        sur {report.total_employees} employés
+                        sur {displayReport.total_employees} employés
                       </p>
                     </div>
 
@@ -206,7 +349,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <AlarmClock className="w-5 h-5 text-purple-600" />
                         <span className="text-2xl font-bold text-purple-700">
-                          {report.advanced_kpis.average_check_in_time || '-'}
+                          {displayReport.advanced_kpis.average_check_in_time || '-'}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-purple-900 dark:text-purple-100">Arrivée moyenne</p>
@@ -220,7 +363,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <Award className="w-5 h-5 text-teal-600" />
                         <span className="text-2xl font-bold text-teal-700">
-                          {report.advanced_kpis.punctuality_rate.toFixed(1)}%
+                          {displayReport.advanced_kpis.punctuality_rate.toFixed(1)}%
                         </span>
                       </div>
                       <p className="text-sm font-medium text-teal-900 dark:text-teal-100">Ponctualité</p>
@@ -234,7 +377,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <AlertTriangle className="w-5 h-5 text-orange-600" />
                         <span className="text-2xl font-bold text-orange-700">
-                          {report.advanced_kpis.late_arrivals}
+                          {displayReport.advanced_kpis.late_arrivals}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-orange-900 dark:text-orange-100">Retards</p>
@@ -248,7 +391,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <Clock className="w-5 h-5 text-indigo-600" />
                         <span className="text-2xl font-bold text-indigo-700">
-                          {report.advanced_kpis.overtime_hours.toFixed(1)}h
+                          {displayReport.advanced_kpis.overtime_hours.toFixed(1)}h
                         </span>
                       </div>
                       <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Heures supp.</p>
@@ -262,7 +405,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <Calendar className="w-5 h-5 text-slate-600" />
                         <span className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-                          {report.advanced_kpis.total_workdays}
+                          {displayReport.advanced_kpis.total_workdays}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Jours ouvrés</p>
@@ -276,7 +419,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <TrendingUp className="w-5 h-5 text-emerald-600" />
                         <span className="text-2xl font-bold text-emerald-700">
-                          {report.advanced_kpis.total_days_worked}
+                          {displayReport.advanced_kpis.total_days_worked}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Jours travaillés</p>
@@ -291,7 +434,7 @@ export default function Reports() {
           )}
 
           {/* Weekly Reports Table */}
-          {report.weekly_reports && report.weekly_reports.length > 0 && (
+          {displayReport.weekly_reports && displayReport.weekly_reports.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -315,7 +458,7 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody>
-                      {report.weekly_reports.map((weeklyReport, index) => (
+                      {displayReport.weekly_reports.map((weeklyReport, index) => (
                         <tr key={index} className="border-b hover:bg-muted/50">
                           <td className="py-3 px-4">
                             <div>
@@ -355,7 +498,7 @@ export default function Reports() {
           )}
 
           {/* Daily Reports Table */}
-          {report.daily_reports && report.daily_reports.length > 0 && (
+          {displayReport.daily_reports && displayReport.daily_reports.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -379,7 +522,7 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody>
-                      {report.daily_reports.slice(0, 20).map((dailyReport, index) => (
+                      {displayReport.daily_reports.slice(0, 20).map((dailyReport, index) => (
                         <tr key={index} className="border-b hover:bg-muted/50">
                           <td className="py-3 px-4">
                             {dailyReport.date
@@ -421,10 +564,10 @@ export default function Reports() {
                     </tbody>
                   </table>
                 </div>
-                {report.daily_reports.length > 20 && (
+                {displayReport.daily_reports.length > 20 && (
                   <div className="text-center mt-4">
                     <p className="text-sm text-muted-foreground">
-                      Affichage de 20 sur {report.daily_reports.length} enregistrements
+                      Affichage de 20 sur {displayReport.daily_reports.length} enregistrements
                     </p>
                   </div>
                 )}
@@ -433,8 +576,8 @@ export default function Reports() {
           )}
 
           {/* No data message */}
-          {(!report.daily_reports || report.daily_reports.length === 0) &&
-            (!report.weekly_reports || report.weekly_reports.length === 0) && (
+          {(!displayReport.daily_reports || displayReport.daily_reports.length === 0) &&
+            (!displayReport.weekly_reports || displayReport.weekly_reports.length === 0) && (
               <Card>
                 <CardContent className="text-center py-12">
                   <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -444,8 +587,7 @@ export default function Reports() {
                 </CardContent>
               </Card>
             )}
-        </>
-      )}
+      </>
     </div>
   );
 }

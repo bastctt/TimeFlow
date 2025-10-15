@@ -15,7 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 
 // icons
-import { Users as UsersIcon, Trash2, Edit, Plus, Mail, User as UserIcon, Eye, EyeOff } from 'lucide-react';
+import { Users as UsersIcon, Trash2, Edit, Plus, Mail, Eye, EyeOff } from 'lucide-react';
 
 // shadcn/ui components
 import { Button } from '@/components/ui/button';
@@ -206,11 +206,6 @@ export default function Users() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Mail className="w-4 h-4" />
                   <span className="truncate">{user.email}</span>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <UserIcon className="w-4 h-4" />
-                  <span>ID: #{user.id}</span>
                 </div>
 
                 <div className="flex gap-2 pt-2">

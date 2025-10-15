@@ -1,8 +1,12 @@
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useClock } from '@/context/ClockContext';
 import { useMyClocks } from '@/hooks/useClocks';
 import ClockButton from '@/components/ClockButton';
+
+// types
+import type { WorkingHours } from '@/types/clock';
 
 // icons
 import { User, Users, Clock, Calendar, TrendingUp, Mail, BarChart3 } from 'lucide-react';
@@ -20,16 +24,23 @@ export default function Dashboard() {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-  const { data: clockData, isLoading: loading } = useMyClocks(
+  const { data: clockData, isLoading: loading, refetch } = useMyClocks(
     startOfMonth.toISOString(),
     endOfMonth.toISOString()
   );
+
+  // Refetch data when clock is updated
+  React.useEffect(() => {
+    if (lastClockUpdate) {
+      refetch();
+    }
+  }, [lastClockUpdate, refetch]);
 
   if (!user) return null;
 
   // Calculate stats from real data
   const monthHours = clockData?.total_hours || 0;
-  const daysWorked = clockData?.working_hours.filter(d => d.hours_worked > 0).length || 0;
+  const daysWorked = clockData?.working_hours.filter((d: WorkingHours) => d.hours_worked > 0).length || 0;
   const avgDailyHours = daysWorked > 0 ? (monthHours / daysWorked).toFixed(1) : '0';
 
   const stats = [
@@ -66,7 +77,7 @@ export default function Dashboard() {
 
             {/* Profile Card */}
             <Link to="/profile">
-              <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
+              <Card className="cursor-pointer h-full hover:bg-accent transition-colors">
                 <CardHeader>
                   <CardTitle>Profil</CardTitle>
                   <CardDescription>Vos informations personnelles</CardDescription>
@@ -93,7 +104,7 @@ export default function Dashboard() {
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {stats.map((stat, index) => (
-              <Card key={index} className="hover:shadow-md transition-shadow">
+              <Card key={index} className="hover:bg-accent transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
                   <stat.icon className="h-5 w-5 text-muted-foreground" />
@@ -126,7 +137,7 @@ export default function Dashboard() {
                 </div>
               ) : clockData && clockData.working_hours.length > 0 ? (
                 <div className="space-y-4">
-                  {clockData.working_hours.slice(-7).map((item, index) => {
+                  {clockData.working_hours.slice(-7).map((item: WorkingHours, index: number) => {
                     const date = new Date(item.date);
                     const dayName = date.toLocaleDateString('fr-FR', { weekday: 'long' });
                     const dateFormatted = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -168,7 +179,7 @@ export default function Dashboard() {
           {/* Top Section - Profile */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Link to="/profile">
-              <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
+              <Card className="cursor-pointer hover:bg-accent transition-colors h-full">
                 <CardHeader>
                   <CardTitle>Profil</CardTitle>
                   <CardDescription>Vos informations</CardDescription>

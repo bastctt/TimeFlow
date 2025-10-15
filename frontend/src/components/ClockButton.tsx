@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useClock } from '@/context/ClockContext';
-import { clocksApi } from '@/services/clocks';
-import type { ClockStatus } from '@/types/clock';
+import { useClockStatus } from '@/hooks/useClocks';
+import { useClockInOut } from '@/hooks/mutations/useClockMutations';
 import { toast } from 'sonner';
 
 // icons
@@ -14,56 +12,59 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 export default function ClockButton() {
   const { user } = useAuth();
-  const { notifyClockChange } = useClock();
-  const [status, setStatus] = useState<ClockStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      loadStatus();
-    }
-  }, [user]);
-
-  const loadStatus = async () => {
-    try {
-      const data = await clocksApi.getStatus();
-      setStatus(data);
-    } catch (err: unknown) {
-      console.error('Error loading clock status:', err);
-    }
-  };
+  const { data: status, isLoading: isLoadingStatus } = useClockStatus();
+  const clockMutation = useClockInOut();
 
   const handleClock = async () => {
     if (!status) return;
 
-    try {
-      setLoading(true);
+    const newStatus = status.is_clocked_in ? 'check-out' : 'check-in';
 
-      const newStatus = status.is_clocked_in ? 'check-out' : 'check-in';
-
-      await clocksApi.clockIn({ status: newStatus });
-
-      toast.success(
-        newStatus === 'check-in'
-          ? 'Pointage d\'arrivée enregistré !'
-          : 'Pointage de départ enregistré !'
-      );
-
-      // Reload status
-      await loadStatus();
-
-      // Notify other components of the change
-      notifyClockChange();
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } };
-      toast.error(error?.response?.data?.error || 'Erreur lors du pointage');
-    } finally {
-      setLoading(false);
-    }
+    clockMutation.mutate(
+      { status: newStatus },
+      {
+        onSuccess: () => {
+          toast.success(
+            newStatus === 'check-in'
+              ? 'Pointage d\'arrivée enregistré !'
+              : 'Pointage de départ enregistré !'
+          );
+        },
+        onError: (err: any) => {
+          const error = err as { response?: { data?: { error?: string } } };
+          toast.error(error?.response?.data?.error || 'Erreur lors du pointage');
+        },
+      }
+    );
   };
 
-  if (!user || !status) {
+  if (!user) {
     return null;
+  }
+
+  // Show skeleton while loading for the first time
+  if (isLoadingStatus || !status) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Pointage
+          </CardTitle>
+          <CardDescription>Chargement...</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button disabled className="w-full" size="sm">
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            Chargement...
+          </Button>
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <div className="w-3 h-3 rounded-full bg-gray-400" />
+            <span>Chargement...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   const isClockedIn = status.is_clocked_in;
@@ -101,7 +102,7 @@ export default function ClockButton() {
       <CardContent className="space-y-4">
         <Button
           onClick={handleClock}
-          disabled={loading || hasCompletedSessionToday}
+          disabled={clockMutation.isPending || !!hasCompletedSessionToday}
           className={`w-full ${
             hasCompletedSessionToday
               ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed'
@@ -109,9 +110,9 @@ export default function ClockButton() {
                 ? 'bg-red-500 hover:bg-red-600'
                 : 'bg-green-500 hover:bg-green-600'
           }`}
-          size="lg"
+          size="sm"
         >
-          {loading ? (
+          {clockMutation.isPending ? (
             <>
               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
               Chargement...

@@ -56,15 +56,15 @@ export function useDeleteUser() {
   });
 }
 
-export function useUpdatePassword() {
-  return useMutation({
-    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
-      usersApi.updatePassword(data),
-    onSuccess: () => {
-      toast.success('Mot de passe modifié avec succès');
-    },
-    onError: () => {
-      toast.error('Erreur lors de la modification du mot de passe');
-    },
-  });
-}
+// export function useUpdatePassword() {
+//   return useMutation({
+//     mutationFn: (data: { currentPassword: string; newPassword: string }) =>
+//       usersApi.updatePassword(data),
+//     onSuccess: () => {
+//       toast.success('Mot de passe modifié avec succès');
+//     },
+//     onError: () => {
+//       toast.error('Erreur lors de la modification du mot de passe');
+//     },
+//   });
+// }

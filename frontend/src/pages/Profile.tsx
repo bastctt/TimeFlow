@@ -170,41 +170,45 @@ export default function Profile() {
               )}
             </div>
 
-            <Alert>
-              <AlertCircle className="w-4 h-4" />
-              <AlertDescription>
-                La modification de votre email ou rôle peut nécessiter une nouvelle connexion.
-              </AlertDescription>
-            </Alert>
+            {user.role !== 'Employé' && (
+              <>
+                <Alert>
+                  <AlertCircle className="w-4 h-4" />
+                  <AlertDescription>
+                    La modification de votre email ou rôle peut nécessiter une nouvelle connexion.
+                  </AlertDescription>
+                </Alert>
 
-            <div className="flex gap-4 pt-4 justify-center">
-              <Button
-                type="submit"
-                disabled={loading}
-                variant={"outline"}
-                size={"sm"}
-              >
-                {loading ? 'Enregistrement...' : 'Enregistrer les modifications'}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size={"sm"}
-                disabled={loading}
-                onClick={() => {
-                  if (user) {
-                    setFormData({
-                      email: user.email,
-                      first_name: user.first_name,
-                      last_name: user.last_name,
-                      role: user.role
-                    });
-                  }
-                }}
-              >
-                Réinitialiser
-              </Button>
-            </div>
+                <div className="flex gap-4 pt-4 justify-center">
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    variant={"outline"}
+                    size={"sm"}
+                  >
+                    {loading ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size={"sm"}
+                    disabled={loading}
+                    onClick={() => {
+                      if (user) {
+                        setFormData({
+                          email: user.email,
+                          first_name: user.first_name,
+                          last_name: user.last_name,
+                          role: user.role
+                        });
+                      }
+                    }}
+                  >
+                    Réinitialiser
+                  </Button>
+                </div>
+              </>
+            )}
           </form>
         </CardContent>
       </Card>

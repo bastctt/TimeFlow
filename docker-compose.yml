@@ -4,16 +4,21 @@ services:
     image: postgres:16-alpine
     container_name: timemanager_db
     environment:
-      POSTGRES_USER: ${DB_USER:-dev}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-user}
-      POSTGRES_DB: ${DB_NAME:-timemanager}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - timemanager_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # Backend API
   backend:
@@ -22,25 +27,26 @@ services:
       dockerfile: Dockerfile
     container_name: timemanager_backend
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-3000}
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
       DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-timemanager}
-      DB_USER: ${DB_USER:-dev}
-      DB_PASSWORD: ${DB_PASSWORD:-user}
-      JWT_SECRET: ${JWT_SECRET:-CHANGE_THIS_SECRET_IN_PRODUCTION}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
-      DB_SSL_ENABLED: ${DB_SSL_ENABLED:-false}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      DB_SSL_ENABLED: ${DB_SSL_ENABLED}
     expose:
       - "3000"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - timemanager_network
     restart: unless-stopped
 
-  # Frontend (React + Vite)
+  # Frontend
   frontend:
     build:
       context: ./frontend
