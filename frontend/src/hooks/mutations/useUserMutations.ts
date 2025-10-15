@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/services/users';
 import { queryKeys } from '@/lib/queryKeys';
 import { toast } from 'sonner';
-import type { CreateEmployeeData, UpdateEmployeeData } from '@/types/user';
+import type { CreateEmployeeData, UpdateEmployeeData, User } from '@/types/user';
 
 export function useCreateEmployee() {
   const queryClient = useQueryClient();
@@ -52,16 +52,16 @@ export function useDeleteUser() {
       await queryClient.cancelQueries({ queryKey: queryKeys.users.employees });
 
       // Snapshot previous values
-      const previousUsers = queryClient.getQueryData<any[]>(queryKeys.users.all);
-      const previousEmployees = queryClient.getQueryData<any[]>(queryKeys.users.employees);
+      const previousUsers = queryClient.getQueryData<User[]>(queryKeys.users.all);
+      const previousEmployees = queryClient.getQueryData<User[]>(queryKeys.users.employees);
 
       // Optimistically remove user from lists
       if (previousUsers) {
-        const updatedUsers = previousUsers.filter((user: any) => user.id !== userId);
+        const updatedUsers = previousUsers.filter((user: User) => user.id !== userId);
         queryClient.setQueryData(queryKeys.users.all, updatedUsers);
       }
       if (previousEmployees) {
-        const updatedEmployees = previousEmployees.filter((user: any) => user.id !== userId);
+        const updatedEmployees = previousEmployees.filter((user: User) => user.id !== userId);
         queryClient.setQueryData(queryKeys.users.employees, updatedEmployees);
       }
 

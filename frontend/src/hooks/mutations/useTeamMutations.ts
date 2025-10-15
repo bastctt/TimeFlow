@@ -3,6 +3,7 @@ import { teamsApi } from '@/services/teams';
 import { queryKeys } from '@/lib/queryKeys';
 import { toast } from 'sonner';
 import type { TeamCreate, TeamUpdate } from '@/types/team';
+import type { User } from '@/types/user';
 
 export function useCreateTeam() {
   const queryClient = useQueryClient();
@@ -100,11 +101,11 @@ export function useRemoveTeamMember() {
       await queryClient.cancelQueries({ queryKey: queryKeys.teams.members(variables.teamId) });
 
       // Snapshot previous value
-      const previousMembers = queryClient.getQueryData<any[]>(queryKeys.teams.members(variables.teamId));
+      const previousMembers = queryClient.getQueryData<User[]>(queryKeys.teams.members(variables.teamId));
 
       // Optimistically remove member from list
       if (previousMembers) {
-        const updatedMembers = previousMembers.filter((member: any) => member.id !== variables.userId);
+        const updatedMembers = previousMembers.filter((member: User) => member.id !== variables.userId);
         queryClient.setQueryData(queryKeys.teams.members(variables.teamId), updatedMembers);
       }
 
