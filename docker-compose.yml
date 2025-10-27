@@ -2,7 +2,7 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: timemanager_db
+    container_name: timeflow_db
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -13,19 +13,29 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - timemanager_network
+      - timeflow_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # MailHog (SMTP test server)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: timeflow_mailhog
+    ports:
+      - "8025:8025"  # Web UI
+    networks:
+      - timeflow_network
+    restart: unless-stopped
+
   # Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: timemanager_backend
+    container_name: timeflow_backend
     environment:
       NODE_ENV: ${NODE_ENV}
       PORT: ${PORT}
@@ -37,13 +47,19 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       DB_SSL_ENABLED: ${DB_SSL_ENABLED}
+      EMAIL_FROM: ${EMAIL_FROM}
+      APP_URL: ${APP_URL}
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
     expose:
       - "3000"
     depends_on:
       postgres:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     networks:
-      - timemanager_network
+      - timeflow_network
     restart: unless-stopped
 
   # Frontend
@@ -53,19 +69,19 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL:-http://localhost}
-    container_name: timemanager_frontend
+    container_name: timeflow_frontend
     expose:
       - "80"
     depends_on:
       - backend
     networks:
-      - timemanager_network
+      - timeflow_network
     restart: unless-stopped
 
   # Reverse Proxy (Nginx)
   reverse-proxy:
     image: nginx:alpine
-    container_name: timemanager_reverse_proxy
+    container_name: timeflow_reverse_proxy
     ports:
       - "80:80"
     volumes:
@@ -74,7 +90,7 @@ services:
       - frontend
       - backend
     networks:
-      - timemanager_network
+      - timeflow_network
     restart: unless-stopped
 
 volumes:
@@ -82,5 +98,5 @@ volumes:
     driver: local
 
 networks:
-  timemanager_network:
+  timeflow_network:
     driver: bridge

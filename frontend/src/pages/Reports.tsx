@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useAllReportPeriods } from '@/hooks/useReports';
+import { useTeamAbsences } from '@/hooks/useAbsences';
 import { toast } from 'sonner';
 
+// utils
+import { formatHoursToHHMM } from '@/lib/utils';
+
 // icons
-import { BarChart3, Calendar, Clock, TrendingUp, Users, Download, Target, UserCheck, AlarmClock, Zap, Award, AlertTriangle } from 'lucide-react';
+import { BarChart3, Calendar, Clock, TrendingUp, Users, Download, Target, UserCheck, AlarmClock, Zap, Award, AlertTriangle, XCircle, UserX } from 'lucide-react';
 
 // shadcn/ui components
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,16 +27,34 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+// import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+// import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 
 export default function Reports() {
   const { user } = useAuth();
-  const [period, setPeriod] = useState<'week' | 'month' | 'custom'>('month');
+  const [period, setPeriod] = useState<'week' | 'month' | 'custom'>('week');
 
   // Load all report periods at once
   const allReports = useAllReportPeriods();
 
   // Get the current report based on selected period
   const report = period === 'week' ? allReports.week : period === 'month' ? allReports.month : allReports.custom;
+  const loading = allReports.isLoading;
+
+  // Calculate date range for absences based on period
+  const absencesDateRange = useMemo(() => {
+    if (!report) return { start: undefined, end: undefined };
+    return {
+      start: report.period_start,
+      end: report.period_end,
+    };
+  }, [report]);
+
+  // Get team absences for the selected period
+  const { data: teamAbsences = [] } = useTeamAbsences(
+    absencesDateRange.start,
+    absencesDateRange.end
+  );
 
   // Export functions
   const exportToCSV = () => {
@@ -51,7 +73,7 @@ export default function Reports() {
           csv += `${dr.date ? new Date(dr.date).toLocaleDateString('fr-FR') : '-'},`;
           csv += `${dr.check_in ? new Date(dr.check_in).toLocaleTimeString('fr-FR') : '-'},`;
           csv += `${dr.check_out ? new Date(dr.check_out).toLocaleTimeString('fr-FR') : '-'},`;
-          csv += `${dr.hours_worked.toFixed(1)}\n`;
+          csv += `${formatHoursToHHMM(dr.hours_worked)}\n`;
         });
       }
 
@@ -60,7 +82,7 @@ export default function Reports() {
         report.weekly_reports.forEach(wr => {
           csv += `Hebdomadaire,"${wr.first_name} ${wr.last_name}","${wr.email}",`;
           csv += `"${new Date(wr.week_start).toLocaleDateString('fr-FR')} - ${new Date(wr.week_end).toLocaleDateString('fr-FR')}",`;
-          csv += `-,-,${wr.total_hours.toFixed(1)}\n`;
+          csv += `-,-,${formatHoursToHHMM(wr.total_hours)}\n`;
         });
       }
 
@@ -130,7 +152,7 @@ export default function Reports() {
           html += `<td>${dr.date ? new Date(dr.date).toLocaleDateString('fr-FR') : '-'}</td>`;
           html += `<td>${dr.check_in ? new Date(dr.check_in).toLocaleTimeString('fr-FR') : '-'}</td>`;
           html += `<td>${dr.check_out ? new Date(dr.check_out).toLocaleTimeString('fr-FR') : '-'}</td>`;
-          html += `<td>${dr.hours_worked.toFixed(1)}</td>`;
+          html += `<td>${formatHoursToHHMM(dr.hours_worked)}</td>`;
           html += '</tr>';
         });
       }
@@ -144,7 +166,7 @@ export default function Reports() {
           html += `<td>${wr.email}</td>`;
           html += `<td>${new Date(wr.week_start).toLocaleDateString('fr-FR')} - ${new Date(wr.week_end).toLocaleDateString('fr-FR')}</td>`;
           html += '<td>-</td><td>-</td>';
-          html += `<td>${wr.total_hours.toFixed(1)}</td>`;
+          html += `<td>${formatHoursToHHMM(wr.total_hours)}</td>`;
           html += '</tr>';
         });
       }
@@ -168,19 +190,6 @@ export default function Reports() {
     }
   };
 
-  // Default data structure to prevent flash
-  const displayReport = report || {
-    team_name: '',
-    total_employees: 0,
-    total_hours: 0,
-    average_hours_per_employee: 0,
-    period_start: new Date().toISOString(),
-    period_end: new Date().toISOString(),
-    weekly_reports: [],
-    daily_reports: [],
-    advanced_kpis: null,
-  };
-
   if (!user || user.role !== 'Manager') {
     return (
       <div className="space-y-6">
@@ -196,6 +205,15 @@ export default function Reports() {
     );
   }
 
+  // Show loading state while data is being fetched (same pattern as Users.tsx)
+  if (loading || !report) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Chargement...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -203,7 +221,7 @@ export default function Reports() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Rapports d'équipe</h1>
           <p className="text-muted-foreground mt-1">
-            {displayReport.team_name || 'Analyse des performances'}
+            {report.team_name}
           </p>
         </div>
 
@@ -221,7 +239,7 @@ export default function Reports() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={!report || allReports.isLoading}>
+              <Button variant="outline" size="sm" disabled={!report}>
                 <Download className="w-4 h-4 mr-2" />
                 Exporter
               </Button>
@@ -244,38 +262,36 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Always show content, use displayReport instead of report */}
-      <>
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Employés</CardTitle>
+              <CardTitle className="text-sm font-medium">Total employés</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayReport.total_employees}</div>
+              <div className="text-2xl font-bold">{report.total_employees}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Heures Totales</CardTitle>
+              <CardTitle className="text-sm font-medium">Heures totales</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayReport.total_hours.toFixed(1)}h</div>
+              <div className="text-2xl font-bold">{formatHoursToHHMM(report.total_hours)}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Moyenne par Employé</CardTitle>
+              <CardTitle className="text-sm font-medium">Moyenne par employé</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {displayReport.average_hours_per_employee.toFixed(1)}h
+                {formatHoursToHHMM(report.average_hours_per_employee)}
               </div>
             </CardContent>
           </Card>
@@ -287,12 +303,12 @@ export default function Reports() {
             </CardHeader>
             <CardContent>
               <div className="text-sm font-medium">
-                {new Date(displayReport.period_start).toLocaleDateString('fr-FR', {
+                {new Date(report.period_start).toLocaleDateString('fr-FR', {
                   day: '2-digit',
                   month: 'short'
                 })}
                 {' - '}
-                {new Date(displayReport.period_end).toLocaleDateString('fr-FR', {
+                {new Date(report.period_end).toLocaleDateString('fr-FR', {
                     day: '2-digit',
                     month: 'short'
                   })}
@@ -302,7 +318,7 @@ export default function Reports() {
           </div>
 
           {/* Advanced KPIs Section */}
-          {displayReport.advanced_kpis && (
+          {report.advanced_kpis && (
             <>
               <Card>
                 <CardHeader>
@@ -321,12 +337,12 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <UserCheck className="w-5 h-5 text-blue-600" />
                         <span className="text-2xl font-bold text-blue-700">
-                          {displayReport.advanced_kpis.attendance_rate.toFixed(1)}%
+                          {report.advanced_kpis.attendance_rate.toFixed(1)}%
                         </span>
                       </div>
                       <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Taux de présence</p>
                       <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        {displayReport.advanced_kpis.total_days_worked} / {displayReport.advanced_kpis.total_workdays * displayReport.total_employees} jours-employés
+                        {report.advanced_kpis.total_days_worked} / {report.advanced_kpis.total_workdays * report.total_employees} jours-employés
                       </p>
                     </div>
 
@@ -335,12 +351,12 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <Zap className="w-5 h-5 text-green-600" />
                         <span className="text-2xl font-bold text-green-700">
-                          {displayReport.advanced_kpis.active_employees_today}
+                          {report.advanced_kpis.active_employees_today}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-green-900 dark:text-green-100">Actifs aujourd'hui</p>
                       <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        sur {displayReport.total_employees} employés
+                        sur {report.total_employees} employés
                       </p>
                     </div>
 
@@ -349,7 +365,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <AlarmClock className="w-5 h-5 text-purple-600" />
                         <span className="text-2xl font-bold text-purple-700">
-                          {displayReport.advanced_kpis.average_check_in_time || '-'}
+                          {report.advanced_kpis.average_check_in_time || '-'}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-purple-900 dark:text-purple-100">Arrivée moyenne</p>
@@ -363,7 +379,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <Award className="w-5 h-5 text-teal-600" />
                         <span className="text-2xl font-bold text-teal-700">
-                          {displayReport.advanced_kpis.punctuality_rate.toFixed(1)}%
+                          {report.advanced_kpis.punctuality_rate.toFixed(1)}%
                         </span>
                       </div>
                       <p className="text-sm font-medium text-teal-900 dark:text-teal-100">Ponctualité</p>
@@ -377,7 +393,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <AlertTriangle className="w-5 h-5 text-orange-600" />
                         <span className="text-2xl font-bold text-orange-700">
-                          {displayReport.advanced_kpis.late_arrivals}
+                          {report.advanced_kpis.late_arrivals}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-orange-900 dark:text-orange-100">Retards</p>
@@ -391,7 +407,7 @@ export default function Reports() {
                       <div className="flex items-center justify-between mb-2">
                         <Clock className="w-5 h-5 text-indigo-600" />
                         <span className="text-2xl font-bold text-indigo-700">
-                          {displayReport.advanced_kpis.overtime_hours.toFixed(1)}h
+                          {formatHoursToHHMM(report.advanced_kpis.overtime_hours)}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Heures supp.</p>
@@ -400,26 +416,12 @@ export default function Reports() {
                       </p>
                     </div>
 
-                    {/* Total Workdays */}
-                    <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-900">
-                      <div className="flex items-center justify-between mb-2">
-                        <Calendar className="w-5 h-5 text-slate-600" />
-                        <span className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-                          {displayReport.advanced_kpis.total_workdays}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Jours ouvrés</p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                        Dans la période
-                      </p>
-                    </div>
-
                     {/* Days Worked */}
                     <div className="p-4 border rounded-lg bg-emerald-50 dark:bg-emerald-950">
                       <div className="flex items-center justify-between mb-2">
                         <TrendingUp className="w-5 h-5 text-emerald-600" />
                         <span className="text-2xl font-bold text-emerald-700">
-                          {displayReport.advanced_kpis.total_days_worked}
+                          {report.advanced_kpis.total_days_worked}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Jours travaillés</p>
@@ -427,167 +429,211 @@ export default function Reports() {
                         Total équipe
                       </p>
                     </div>
+
+                    {/* Incomplete Sessions (excluding today) */}
+                    <div className="p-4 border rounded-lg bg-red-50 dark:bg-red-950">
+                      <div className="flex items-center justify-between mb-2">
+                        <XCircle className="w-5 h-5 text-red-600" />
+                        <span className="text-2xl font-bold text-red-700">
+                          {(() => {
+                            const today = new Date().toISOString().split('T')[0];
+                            return report.daily_reports?.filter((dr) => {
+                              // Only count as incomplete if:
+                              // 1. Missing checkout is true
+                              // 2. AND the date is before today
+                              return dr.missing_checkout && dr.date < today;
+                            }).length || 0;
+                          })()}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-red-900 dark:text-red-100">Sessions incomplètes</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                        Check-out manquants (passés)
+                      </p>
+                    </div>
+
+                    {/* Absences */}
+                    <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
+                      <div className="flex items-center justify-between mb-2">
+                        <UserX className="w-5 h-5 text-gray-600" />
+                        <span className="text-2xl font-bold text-gray-700 dark:text-gray-300">
+                          {teamAbsences.length}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Absences</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        Jours d'absence déclarés
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Charts Section - Commented for now */}
+              {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6"> */}
+                {/* Chart 1: Daily Attendance Rate */}
+                {/* {report.daily_reports && report.daily_reports.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <UserCheck className="w-5 h-5 text-blue-600" />
+                        Taux de présence quotidien
+                      </CardTitle>
+                      <CardDescription>Évolution jour par jour sur la période</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ChartContainer
+                        config={{
+                          rate: {
+                            label: "Taux de présence",
+                            color: "hsl(var(--chart-1))",
+                          },
+                        }}
+                        className="h-[300px]"
+                      >
+                        <LineChart
+                          data={(() => {
+                            // Group by date and calculate attendance rate
+                            const dateMap = report.daily_reports.reduce((acc: Record<string, { present: number; total: number }>, dr) => {
+                              const date = dr.date;
+                              if (!acc[date]) {
+                                acc[date] = { present: 0, total: 0 };
+                              }
+                              acc[date].total += 1;
+                              if (dr.check_in) {
+                                acc[date].present += 1;
+                              }
+                              return acc;
+                            }, {});
+
+                            return Object.entries(dateMap)
+                              .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+                              .map(([date, data]) => ({
+                                date: new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+                                rate: Math.round((data.present / data.total) * 100),
+                              }));
+                          })()}
+                          margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                            domain={[0, 100]}
+                          />
+                          <ChartTooltip
+                            content={<ChartTooltipContent />}
+                            formatter={(value: number) => [`${value}%`, "Présence"]}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="rate"
+                            stroke="#3b82f6"
+                            strokeWidth={3}
+                            dot={{ fill: "#3b82f6", r: 5 }}
+                            activeDot={{ r: 7 }}
+                          />
+                        </LineChart>
+                      </ChartContainer>
+                    </CardContent>
+                  </Card>
+                )} */}
+
+                {/* Chart 2: Overtime Hours by Employee */}
+                {/* {report.daily_reports && report.daily_reports.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-indigo-600" />
+                        Heures supplémentaires
+                      </CardTitle>
+                      <CardDescription>Total par employé (au-delà de 8h/jour)</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ChartContainer
+                        config={{
+                          overtime: {
+                            label: "Heures supp.",
+                            color: "hsl(var(--chart-4))",
+                          },
+                        }}
+                        className="h-[300px]"
+                      >
+                        <BarChart
+                          data={(() => {
+                            // Calculate overtime by employee
+                            const employeeOvertime = report.daily_reports.reduce((acc: Record<string, { name: string; overtime: number }>, dr) => {
+                              const key = `${dr.first_name} ${dr.last_name}`;
+                              if (!acc[key]) {
+                                acc[key] = { name: key, overtime: 0 };
+                              }
+                              // Overtime = hours worked beyond 8 hours per day
+                              if (dr.hours_worked > 8) {
+                                acc[key].overtime += (dr.hours_worked - 8);
+                              }
+                              return acc;
+                            }, {});
+
+                            return Object.values(employeeOvertime)
+                              .filter(e => e.overtime > 0) // Only show employees with overtime
+                              .sort((a, b) => b.overtime - a.overtime) // Sort by most overtime
+                              .map(e => ({
+                                name: e.name.split(' ')[0],
+                                overtime: parseFloat(e.overtime.toFixed(1)),
+                                fullName: e.name,
+                              }));
+                          })()}
+                          margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis
+                            dataKey="name"
+                            tick={{ fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <ChartTooltip
+                            content={<ChartTooltipContent />}
+                            formatter={(value: number) => [`${value}h`, "Heures supp."]}
+                          />
+                          <Bar
+                            dataKey="overtime"
+                            fill="#6366f1"
+                            radius={[8, 8, 0, 0]}
+                          />
+                        </BarChart>
+                      </ChartContainer>
+                    </CardContent>
+                  </Card>
+                )} */}
+              {/* </div> */}
             </>
           )}
 
-          {/* Weekly Reports Table */}
-          {displayReport.weekly_reports && displayReport.weekly_reports.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  Rapports Hebdomadaires
-                </CardTitle>
-                <CardDescription>
-                  Résumé des heures travaillées par employé et par semaine
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-4 font-medium">Employé</th>
-                        <th className="text-left py-3 px-4 font-medium">Semaine</th>
-                        <th className="text-right py-3 px-4 font-medium">Heures Totales</th>
-                        <th className="text-right py-3 px-4 font-medium">Jours Travaillés</th>
-                        <th className="text-right py-3 px-4 font-medium">Moyenne/Jour</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayReport.weekly_reports.map((weeklyReport, index) => (
-                        <tr key={index} className="border-b hover:bg-muted/50">
-                          <td className="py-3 px-4">
-                            <div>
-                              <p className="font-medium">
-                                {weeklyReport.first_name} {weeklyReport.last_name}
-                              </p>
-                              <p className="text-sm text-muted-foreground">{weeklyReport.email}</p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="text-sm">
-                              {new Date(weeklyReport.week_start).toLocaleDateString('fr-FR', {
-                                day: '2-digit',
-                                month: 'short'
-                              })}
-                              {' - '}
-                              {new Date(weeklyReport.week_end).toLocaleDateString('fr-FR', {
-                                day: '2-digit',
-                                month: 'short'
-                              })}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-right font-semibold">
-                            {weeklyReport.total_hours.toFixed(1)}h
-                          </td>
-                          <td className="py-3 px-4 text-right">{weeklyReport.days_worked}</td>
-                          <td className="py-3 px-4 text-right">
-                            {weeklyReport.average_daily_hours.toFixed(1)}h
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Daily Reports Table */}
-          {displayReport.daily_reports && displayReport.daily_reports.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Rapports Journaliers
-                </CardTitle>
-                <CardDescription>
-                  Détail des pointages quotidiens
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-4 font-medium">Date</th>
-                        <th className="text-left py-3 px-4 font-medium">Employé</th>
-                        <th className="text-left py-3 px-4 font-medium">Arrivée</th>
-                        <th className="text-left py-3 px-4 font-medium">Départ</th>
-                        <th className="text-right py-3 px-4 font-medium">Heures</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayReport.daily_reports.slice(0, 20).map((dailyReport, index) => (
-                        <tr key={index} className="border-b hover:bg-muted/50">
-                          <td className="py-3 px-4">
-                            {dailyReport.date
-                              ? new Date(dailyReport.date).toLocaleDateString('fr-FR', {
-                                  weekday: 'short',
-                                  day: '2-digit',
-                                  month: 'short'
-                                })
-                              : '-'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div>
-                              <p className="font-medium">
-                                {dailyReport.first_name} {dailyReport.last_name}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            {dailyReport.check_in
-                              ? new Date(dailyReport.check_in).toLocaleTimeString('fr-FR', {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })
-                              : '-'}
-                          </td>
-                          <td className="py-3 px-4">
-                            {dailyReport.check_out
-                              ? new Date(dailyReport.check_out).toLocaleTimeString('fr-FR', {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })
-                              : '-'}
-                          </td>
-                          <td className="py-3 px-4 text-right font-semibold">
-                            {dailyReport.hours_worked.toFixed(1)}h
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {displayReport.daily_reports.length > 20 && (
-                  <div className="text-center mt-4">
-                    <p className="text-sm text-muted-foreground">
-                      Affichage de 20 sur {displayReport.daily_reports.length} enregistrements
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* No data message */}
-          {(!displayReport.daily_reports || displayReport.daily_reports.length === 0) &&
-            (!displayReport.weekly_reports || displayReport.weekly_reports.length === 0) && (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">
-                    Aucune donnée de pointage pour cette période
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-      </>
+      {/* No data message - only show when we have real data that is empty */}
+      {(!report.daily_reports || report.daily_reports.length === 0) &&
+        (!report.weekly_reports || report.weekly_reports.length === 0) && (
+          <Card>
+            <CardContent className="text-center py-12">
+              <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">
+                Aucune donnée de pointage pour cette période
+              </p>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }

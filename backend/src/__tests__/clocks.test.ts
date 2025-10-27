@@ -4,8 +4,12 @@ import app from '../index';
 import { UserModel } from '../models/User.model';
 import { ClockModel } from '../models/Clock.model';
 import { generateToken } from '../middleware/auth';
+import type { User } from '../types/user';
+import type { Clock } from '../types/clock';
 
-jest.mock('../config/database');
+jest.mock('../config/database', () => ({
+  default: {},
+}));
 jest.mock('../models/User.model', () => ({
   UserModel: {
     findById: jest.fn(),
@@ -21,23 +25,25 @@ jest.mock('../models/Clock.model', () => ({
   },
 }));
 
+const mockUserModel = UserModel as jest.Mocked<typeof UserModel>;
+const mockClockModel = ClockModel as jest.Mocked<typeof ClockModel>;
+
 describe('Clocks Routes', () => {
-  const mockEmployee = {
+  const mockEmployee: User = {
     id: 1,
     email: 'employee@test.com',
+    password_hash: 'hashed_password',
     first_name: 'Employee',
     last_name: 'Test',
-    role: 'Employé',
-    team_id: 1,
-    created_at: new Date(),
-    updated_at: new Date()
+    role: 'Employé' as const,
+    team_id: 1
   };
 
-  const mockClock = {
+  const mockClock: Clock = {
     id: 1,
     user_id: mockEmployee.id,
     clock_time: new Date(),
-    status: 'check-in',
+    status: 'check-in' as const,
     created_at: new Date()
   };
 
@@ -49,8 +55,8 @@ describe('Clocks Routes', () => {
 
   describe('GET /api/clocks/status', () => {
     it('should get clock status', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
-      (ClockModel.getLastClock as jest.Mock).mockResolvedValue(mockClock);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
+      mockClockModel.getLastClock.mockResolvedValue(mockClock);
 
       const res = await request(app)
         .get('/api/clocks/status')
@@ -69,9 +75,9 @@ describe('Clocks Routes', () => {
 
   describe('POST /api/clocks', () => {
     it('should clock in', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
-      (ClockModel.getLastClock as jest.Mock).mockResolvedValue(null);
-      (ClockModel.create as jest.Mock).mockResolvedValue(mockClock);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
+      mockClockModel.getLastClock.mockResolvedValue(null);
+      mockClockModel.create.mockResolvedValue(mockClock);
 
       const res = await request(app)
         .post('/api/clocks')
@@ -83,8 +89,8 @@ describe('Clocks Routes', () => {
     });
 
     it('should reject duplicate check-in', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
-      (ClockModel.getLastClock as jest.Mock).mockResolvedValue(mockClock);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
+      mockClockModel.getLastClock.mockResolvedValue(mockClock);
 
       const res = await request(app)
         .post('/api/clocks')
@@ -95,11 +101,11 @@ describe('Clocks Routes', () => {
     });
 
     it('should clock out', async () => {
-      const checkOutClock = { ...mockClock, status: 'check-out' };
+      const checkOutClock = { ...mockClock, status: 'check-out' as const };
 
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
-      (ClockModel.getLastClock as jest.Mock).mockResolvedValue(mockClock);
-      (ClockModel.create as jest.Mock).mockResolvedValue(checkOutClock);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
+      mockClockModel.getLastClock.mockResolvedValue(mockClock);
+      mockClockModel.create.mockResolvedValue(checkOutClock);
 
       const res = await request(app)
         .post('/api/clocks')
@@ -130,10 +136,10 @@ describe('Clocks Routes', () => {
 
   describe('GET /api/clocks', () => {
     it('should get user clocks', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
-      (ClockModel.findByUserId as jest.Mock).mockResolvedValue([mockClock]);
-      (ClockModel.calculateWorkingHours as jest.Mock).mockReturnValue([]);
-      (ClockModel.calculateTotalHours as jest.Mock).mockReturnValue(8);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
+      mockClockModel.findByUserId.mockResolvedValue([mockClock]);
+      mockClockModel.calculateWorkingHours.mockReturnValue([]);
+      mockClockModel.calculateTotalHours.mockReturnValue(8);
 
       const res = await request(app)
         .get('/api/clocks')
@@ -150,10 +156,10 @@ describe('Clocks Routes', () => {
       startDate.setDate(startDate.getDate() - 7);
       const endDate = new Date();
 
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
-      (ClockModel.findByUserId as jest.Mock).mockResolvedValue([mockClock]);
-      (ClockModel.calculateWorkingHours as jest.Mock).mockReturnValue([]);
-      (ClockModel.calculateTotalHours as jest.Mock).mockReturnValue(8);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
+      mockClockModel.findByUserId.mockResolvedValue([mockClock]);
+      mockClockModel.calculateWorkingHours.mockReturnValue([]);
+      mockClockModel.calculateTotalHours.mockReturnValue(8);
 
       const res = await request(app)
         .get('/api/clocks')
@@ -176,10 +182,10 @@ describe('Clocks Routes', () => {
 
   describe('GET /api/users/:id/clocks', () => {
     it('should get clocks for self', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
-      (ClockModel.findByUserId as jest.Mock).mockResolvedValue([mockClock]);
-      (ClockModel.calculateWorkingHours as jest.Mock).mockReturnValue([]);
-      (ClockModel.calculateTotalHours as jest.Mock).mockReturnValue(8);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
+      mockClockModel.findByUserId.mockResolvedValue([mockClock]);
+      mockClockModel.calculateWorkingHours.mockReturnValue([]);
+      mockClockModel.calculateTotalHours.mockReturnValue(8);
 
       const res = await request(app)
         .get(`/api/users/${mockEmployee.id}/clocks`)

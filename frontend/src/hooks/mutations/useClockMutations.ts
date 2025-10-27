@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { clocksApi } from '@/services/clocks';
 import { queryKeys } from '@/lib/queryKeys';
 import { toast } from 'sonner';
-import type { ClockIn, ClockStatus, Clock } from '@/types/clock';
+import type { ClockIn, ClockStatus, Clock, AbsentDayMark } from '@/types/clock';
 
 export function useClockInOut() {
   const queryClient = useQueryClient();
@@ -52,6 +52,30 @@ export function useClockInOut() {
         queryClient.setQueryData(queryKeys.clocks.status, context.previousStatus);
       }
       toast.error('Erreur lors du pointage');
+    },
+  });
+}
+
+export function useMarkAbsent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: AbsentDayMark) => clocksApi.markAbsent(data),
+    onSuccess: async () => {
+      // Invalidate and refetch all clock-related queries immediately
+      await Promise.all([
+        // Invalidate all clocks queries (includes my clocks, issues, status, etc.)
+        queryClient.invalidateQueries({ queryKey: ['clocks'], refetchType: 'all' }),
+        // Invalidate users queries (for manager view showing team member clocks)
+        queryClient.invalidateQueries({ queryKey: ['users'], refetchType: 'all' }),
+        // Invalidate reports (for manager KPIs showing absences)
+        queryClient.invalidateQueries({ queryKey: ['reports'], refetchType: 'all' }),
+      ]);
+
+      toast.success('Absence marquée avec succès');
+    },
+    onError: () => {
+      toast.error('Erreur lors du marquage de l\'absence');
     },
   });
 }

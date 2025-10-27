@@ -88,17 +88,19 @@ export class ClockModel {
    * Calculate working hours from clock pairs
    */
   static calculateWorkingHours(clocks: Clock[]): WorkingHours[] {
-    const dayMap: { [date: string]: { checkIn: Date | null; checkOut: Date | null } } = {};
+    const dayMap: { [date: string]: { checkIn: Date | null; checkOut: Date | null; isAbsent: boolean } } = {};
 
     // Group clocks by date
     for (const clock of clocks) {
       const date = new Date(clock.clock_time).toISOString().split('T')[0];
 
       if (!dayMap[date]) {
-        dayMap[date] = { checkIn: null, checkOut: null };
+        dayMap[date] = { checkIn: null, checkOut: null, isAbsent: false };
       }
 
-      if (clock.status === 'check-in') {
+      if (clock.status === 'absent') {
+        dayMap[date].isAbsent = true;
+      } else if (clock.status === 'check-in') {
         // Take the first check-in of the day
         if (!dayMap[date].checkIn) {
           dayMap[date].checkIn = new Date(clock.clock_time);
@@ -114,17 +116,27 @@ export class ClockModel {
 
     for (const [date, times] of Object.entries(dayMap)) {
       let hoursWorked = 0;
+      let missingCheckout = false;
 
-      if (times.checkIn && times.checkOut) {
+      if (times.isAbsent) {
+        // If marked as absent, hours are 0
+        hoursWorked = 0;
+      } else if (times.checkIn && times.checkOut) {
         const diffMs = times.checkOut.getTime() - times.checkIn.getTime();
         hoursWorked = diffMs / (1000 * 60 * 60); // Convert to hours
+      } else if (times.checkIn && !times.checkOut) {
+        // Check-in without check-out
+        missingCheckout = true;
+        hoursWorked = 0;
       }
 
       workingHours.push({
         date,
         check_in: times.checkIn,
         check_out: times.checkOut,
-        hours_worked: parseFloat(hoursWorked.toFixed(2))
+        hours_worked: parseFloat(hoursWorked.toFixed(2)),
+        is_absent: times.isAbsent,
+        missing_checkout: missingCheckout
       });
     }
 
@@ -156,13 +168,18 @@ export class ClockModel {
         DATE(c.clock_time) as date,
         MIN(CASE WHEN c.status = 'check-in' THEN c.clock_time END) as check_in,
         MAX(CASE WHEN c.status = 'check-out' THEN c.clock_time END) as check_out,
-        COALESCE(
-          EXTRACT(EPOCH FROM (
-            MAX(CASE WHEN c.status = 'check-out' THEN c.clock_time END) -
-            MIN(CASE WHEN c.status = 'check-in' THEN c.clock_time END)
-          )) / 3600,
-          0
-        ) as hours_worked
+        bool_or(c.status = 'absent') as is_absent,
+        (bool_or(c.status = 'check-in') AND NOT bool_or(c.status = 'check-out')) as missing_checkout,
+        CASE
+          WHEN bool_or(c.status = 'absent') THEN 0
+          ELSE COALESCE(
+            EXTRACT(EPOCH FROM (
+              MAX(CASE WHEN c.status = 'check-out' THEN c.clock_time END) -
+              MIN(CASE WHEN c.status = 'check-in' THEN c.clock_time END)
+            )) / 3600,
+            0
+          )
+        END as hours_worked
       FROM users u
       LEFT JOIN clocks c ON u.id = c.user_id
         AND c.clock_time >= $2
@@ -180,7 +197,9 @@ export class ClockModel {
 
     return result.rows.map(row => ({
       ...row,
-      hours_worked: row.hours_worked != null ? parseFloat(Number(row.hours_worked).toFixed(2)) : 0
+      hours_worked: row.hours_worked != null ? parseFloat(Number(row.hours_worked).toFixed(2)) : 0,
+      is_absent: row.is_absent || false,
+      missing_checkout: row.missing_checkout || false
     }));
   }
 
@@ -417,5 +436,185 @@ export class ClockModel {
     }
 
     return count;
+  }
+
+  /**
+   * Mark a day as absent for a user
+   * Prevents duplicates by checking if absence already exists for the day
+   */
+  static async markAbsent(userId: number, date: Date): Promise<Clock> {
+    // Set time to start of day
+    const absenceDate = new Date(date);
+    absenceDate.setHours(0, 0, 0, 0);
+
+    const nextDay = new Date(absenceDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // Check if absence already exists for this date
+    const checkQuery = `
+      SELECT * FROM clocks
+      WHERE user_id = $1
+        AND clock_time >= $2
+        AND clock_time < $3
+        AND status = 'absent'
+    `;
+
+    const existing = await pool.query(checkQuery, [userId, absenceDate, nextDay]);
+
+    if (existing.rows.length > 0) {
+      // Already marked as absent, return existing record
+      return existing.rows[0];
+    }
+
+    // Insert new absence
+    const result: QueryResult<Clock> = await pool.query(
+      'INSERT INTO clocks (user_id, clock_time, status) VALUES ($1, $2, $3) RETURNING *',
+      [userId, absenceDate, 'absent']
+    );
+
+    return result.rows[0];
+  }
+
+  /**
+   * Detect and return missing check-outs for a user
+   * Returns dates where check-in exists but no check-out
+   */
+  static async detectMissingCheckouts(
+    userId: number,
+    startDate: Date,
+    endDate: Date
+  ): Promise<string[]> {
+    const query = `
+      WITH daily_clocks AS (
+        SELECT
+          DATE(clock_time) as date,
+          bool_or(status = 'check-in') as has_checkin,
+          bool_or(status = 'check-out') as has_checkout,
+          bool_or(status = 'absent') as is_absent
+        FROM clocks
+        WHERE user_id = $1
+          AND clock_time >= $2
+          AND clock_time <= $3
+        GROUP BY DATE(clock_time)
+      )
+      SELECT date
+      FROM daily_clocks
+      WHERE has_checkin = true
+        AND has_checkout = false
+        AND is_absent = false
+      ORDER BY date DESC
+    `;
+
+    const result = await pool.query(query, [userId, startDate, endDate]);
+    return result.rows.map(row => row.date);
+  }
+
+  /**
+   * Detect and return absent days (no clocks at all on workdays)
+   * Only checks Monday-Friday
+   * Excludes:
+   * - Days already marked as absent
+   * - Current day if there's an active check-in without check-out
+   */
+  static async detectAbsentDays(
+    userId: number,
+    startDate: Date,
+    endDate: Date
+  ): Promise<string[]> {
+    // Get all dates with clock entries and their status
+    const query = `
+      SELECT
+        DISTINCT DATE(clock_time) as date,
+        MAX(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as is_absent,
+        MAX(CASE WHEN status = 'check-in' THEN 1 ELSE 0 END) as has_checkin,
+        MAX(CASE WHEN status = 'check-out' THEN 1 ELSE 0 END) as has_checkout
+      FROM clocks
+      WHERE user_id = $1
+        AND clock_time >= $2
+        AND clock_time <= $3
+      GROUP BY DATE(clock_time)
+    `;
+
+    const result = await pool.query(query, [userId, startDate, endDate]);
+
+    // Build a map of dates with their status
+    const datesMap = new Map(
+      result.rows.map(row => [
+        row.date,
+        {
+          isAbsent: row.is_absent === 1,
+          hasCheckin: row.has_checkin === 1,
+          hasCheckout: row.has_checkout === 1
+        }
+      ])
+    );
+
+    // Get current date (today)
+    const today = new Date().toISOString().split('T')[0];
+
+    // Generate all workdays in the period
+    const absentDays: string[] = [];
+    const current = new Date(startDate);
+
+    while (current <= endDate) {
+      const dayOfWeek = current.getDay();
+      // Only check Monday-Friday (1-5)
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        const dateStr = current.toISOString().split('T')[0];
+        const dateStatus = datesMap.get(dateStr);
+
+        if (!dateStatus) {
+          // No clock entry at all for this date
+          // Don't include if it's today or in the future
+          if (dateStr < today) {
+            absentDays.push(dateStr);
+          }
+        } else if (!dateStatus.isAbsent) {
+          // Has clock entries but not marked as absent
+          // Don't include if:
+          // - It's today with an active check-in (no check-out yet)
+          // - It has any valid clock activity
+          const isActiveToday = dateStr === today && dateStatus.hasCheckin && !dateStatus.hasCheckout;
+          if (!isActiveToday && !dateStatus.hasCheckin && !dateStatus.hasCheckout) {
+            absentDays.push(dateStr);
+          }
+        }
+        // If isAbsent is true, we don't include it (already marked)
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return absentDays;
+  }
+
+  /**
+   * Auto-mark absences for users without any clock entries on workdays
+   */
+  static async autoMarkAbsences(
+    userIds: number[],
+    startDate: Date,
+    endDate: Date
+  ): Promise<{ userId: number; markedDates: string[] }[]> {
+    const results: { userId: number; markedDates: string[] }[] = [];
+
+    for (const userId of userIds) {
+      const absentDays = await this.detectAbsentDays(userId, startDate, endDate);
+      const markedDates: string[] = [];
+
+      for (const dateStr of absentDays) {
+        try {
+          await this.markAbsent(userId, new Date(dateStr));
+          markedDates.push(dateStr);
+        } catch (error) {
+          console.error(`Failed to mark absence for user ${userId} on ${dateStr}:`, error);
+        }
+      }
+
+      if (markedDates.length > 0) {
+        results.push({ userId, markedDates });
+      }
+    }
+
+    return results;
   }
 }

@@ -1,21 +1,21 @@
-FROM node:20-alpine
+FROM oven/bun:1.3-alpine
 
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json bun.lock* ./
 
 # Install dependencies
-RUN npm ci
+RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY . .
 
 # Build TypeScript
-RUN npm run build
+RUN bun run build
 
 # Expose port
 EXPOSE 3000
 
 # Start application
-CMD ["node", "dist/index.js"]
+CMD ["bun", "run", "dist/index.js"]

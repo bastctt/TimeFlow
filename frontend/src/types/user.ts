@@ -5,6 +5,8 @@ export interface User {
   last_name: string;
   role: 'Manager' | 'Employé';
   team_id?: number;
+  work_start_time?: string;
+  work_end_time?: string;
 }
 
 export interface AuthResponse {

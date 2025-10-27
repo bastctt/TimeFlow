@@ -47,4 +47,22 @@ export const authApi = {
     const { data } = await api.put<{ user: User }>('/auth/update', updates);
     return data.user;
   },
+
+  requestPasswordReset: async (email: string): Promise<{ message: string }> => {
+    const { data } = await api.post<{ message: string }>('/auth/request-reset', { email });
+    return data;
+  },
+
+  verifyResetToken: async (token: string): Promise<{ valid: boolean; email: string; first_name: string }> => {
+    const { data } = await api.post<{ valid: boolean; email: string; first_name: string }>('/auth/verify-reset-token', { token });
+    return data;
+  },
+
+  resetPassword: async (token: string, password: string): Promise<{ message: string; token: string }> => {
+    const { data } = await api.post<{ message: string; token: string }>('/auth/reset-password', { token, password });
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+    }
+    return data;
+  },
 };

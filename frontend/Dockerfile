@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM oven/bun:1.3-alpine AS builder
 
 WORKDIR /app
 
@@ -8,16 +8,16 @@ ARG VITE_API_URL=http://localhost:3000
 ENV VITE_API_URL=$VITE_API_URL
 
 # Copy package files
-COPY package*.json ./
+COPY package.json bun.lock* ./
 
 # Install dependencies
-RUN npm ci
+RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN npm run build
+RUN bun run build
 
 # Verify build directory was created
 RUN ls -la /app/build || (echo "ERROR: build directory not found after build" && exit 1)

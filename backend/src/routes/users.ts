@@ -3,6 +3,8 @@ import { validate } from '../middleware/validation';
 import { authenticateToken, requireManager, AuthRequest } from '../middleware/auth';
 import { UserModel } from '../models/User.model';
 import { ClockModel } from '../models/Clock.model';
+import { PasswordResetTokenModel } from '../models/PasswordResetToken.model';
+import { emailService } from '../services/email.service';
 import type { UserRegistration } from '../types/user';
 
 const router = Router();
@@ -116,6 +118,21 @@ router.post(
       // Get updated user
       const updatedUser = await UserModel.findById(newUser.id);
       const userResponse = updatedUser ? UserModel.toResponse(updatedUser) : UserModel.toResponse(newUser);
+
+      // Generate password reset token and send welcome email
+      try {
+        const { token } = await PasswordResetTokenModel.create(newUser.id);
+        await emailService.sendWelcomeEmail(
+          newUser.email,
+          newUser.first_name,
+          newUser.last_name,
+          token
+        );
+        console.log(`✅ Welcome email sent to ${newUser.email}`);
+      } catch (emailError) {
+        // Log error but don't fail the user creation
+        console.error('Failed to send welcome email:', emailError);
+      }
 
       res.status(201).json({
         message: 'Employee created successfully',

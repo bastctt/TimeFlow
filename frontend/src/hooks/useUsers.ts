@@ -8,9 +8,9 @@ export function useUsers() {
     queryFn: () => usersApi.getAll(),
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
-    refetchOnMount: false,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
-    placeholderData: [], // Prevent flash with empty array
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -20,9 +20,9 @@ export function useEmployees() {
     queryFn: () => usersApi.getEmployees(),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
-    refetchOnMount: false,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
-    placeholderData: [], // Prevent flash with empty array
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -33,8 +33,9 @@ export function useUser(id: number) {
     enabled: !!id,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
-    refetchOnMount: false,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -45,7 +46,8 @@ export function useUserClocks(id: number, startDate?: string, endDate?: string) 
     enabled: !!id && !!startDate && !!endDate,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
-    refetchOnMount: false,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 }

@@ -1,0 +1,36 @@
+{
+  "name": "timeflow",
+  "version": "1.0.0",
+  "description": "TimeFlow - Application de gestion du temps et des absences",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:patch": "standard-version --release-as patch",
+    "release:first": "standard-version --first-release"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bastctt/TimeFlow.git"
+  },
+  "keywords": [
+    "timeflow",
+    "time-management",
+    "clock-in",
+    "absence-management"
+  ],
+  "author": "Bastien Cochet",
+  "license": "MIT",
+  "devDependencies": {
+    "standard-version": "^9.5.0"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.3",
+    "express": "^5.1.0"
+  }
+}

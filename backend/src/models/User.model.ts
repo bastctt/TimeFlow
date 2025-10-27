@@ -125,10 +125,38 @@ export class UserModel {
   }
 
   /**
+   * Find users by team IDs
+   */
+  static async findByTeamIds(teamIds: number[]): Promise<User[]> {
+    const result: QueryResult<User> = await pool.query(
+      'SELECT id, email, password_hash, first_name, last_name, role, team_id FROM users WHERE team_id = ANY($1)',
+      [teamIds]
+    );
+
+    return result.rows;
+  }
+
+  /**
    * Verify password
    */
   static async verifyPassword(user: User, password: string): Promise<boolean> {
     return bcrypt.compare(password, user.password_hash);
+  }
+
+  /**
+   * Update user password
+   */
+  static async updatePassword(id: number, newPassword: string): Promise<boolean> {
+    // Hash new password
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(newPassword, saltRounds);
+
+    const result: QueryResult = await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [password_hash, id]
+    );
+
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   /**

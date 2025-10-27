@@ -24,4 +24,6 @@ export interface TeamMember {
   first_name: string;
   last_name: string;
   role: 'Manager' | 'Employé';
+  work_start_time?: string;
+  work_end_time?: string;
 }

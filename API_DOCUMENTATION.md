@@ -129,7 +129,7 @@ Query: `?start_date=<ISO>&end_date=<ISO>`
 # Login
 curl -X POST http://localhost/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"manager1@timemanager.com","password":"password123"}'
+  -d '{"email":"manager1@timeflow.com","password":"password123"}'
 
 # Get teams
 curl http://localhost/api/teams \

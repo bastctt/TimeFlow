@@ -7,8 +7,8 @@
 
 ## Comptes Test
 
-- **Manager**: manager1@timemanager.com / password123
-- **Employé**: marketing1@timemanager.com / password123
+- **Manager**: manager1@timeflow.com / password123
+- **Employé**: marketing1@timeflow.com / password123
 
 ## Rôles
 

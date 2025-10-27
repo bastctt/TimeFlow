@@ -23,7 +23,7 @@ Ce projet utilise GitHub Actions pour le CI/CD. Vous devez configurer les secret
 
 - **`DB_NAME`**
   - Description : Nom de la base de données
-  - Valeur recommandée : `timemanager`
+  - Valeur recommandée : `timeflow`
 
 - **`DB_PORT`**
   - Description : Port PostgreSQL

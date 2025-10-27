@@ -35,7 +35,7 @@
 | id | SERIAL | PK |
 | user_id | INTEGER | FK → users(id) |
 | clock_time | TIMESTAMP | NOT NULL |
-| status | VARCHAR(20) | 'check-in' ou 'check-out' |
+| status | VARCHAR(20) | 'check-in', 'check-out' ou 'absent' |
 | created_at | TIMESTAMP | Auto |
 
 **Index**: user_id, clock_time
@@ -57,13 +57,13 @@ clocks.user_id → users.id (Many-to-One)
 ## Données Test
 
 ### Managers
-- manager1@timemanager.com (Équipe Dev, id=1)
-- manager2@timemanager.com (Équipe Marketing, id=2)
-- manager3@timemanager.com (Équipe Support, id=3)
+- manager1@timeflow.com (Équipe Dev, id=1)
+- manager2@timeflow.com (Équipe Marketing, id=2)
+- manager3@timeflow.com (Équipe Support, id=3)
 
 ### Employés
-- dev1-3@timemanager.com (Équipe 1)
-- marketing1-2@timemanager.com (Équipe 2)
-- support1-3@timemanager.com (Équipe 3)
+- dev1-3@timeflow.com (Équipe 1)
+- marketing1-2@timeflow.com (Équipe 2)
+- support1-3@timeflow.com (Équipe 3)
 
 Tous les mots de passe: **password123**

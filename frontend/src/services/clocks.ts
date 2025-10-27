@@ -5,7 +5,9 @@ import type {
   ClockIn,
   UserClocks,
   TeamReport,
-  EmployeeReport
+  EmployeeReport,
+  ClockIssues,
+  AbsentDayMark
 } from '../types/clock';
 
 export const clocksApi = {
@@ -61,6 +63,28 @@ export const clocksApi = {
       params.toString() ? `?${params.toString()}` : ''
     }`);
     return data;
+  },
+
+  /**
+   * Detect clock issues (missing checkouts and absent days)
+   */
+  detectIssues: async (startDate?: string, endDate?: string): Promise<ClockIssues> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+
+    const { data } = await api.get<ClockIssues>(`/clocks/detect-issues${
+      params.toString() ? `?${params.toString()}` : ''
+    }`);
+    return data;
+  },
+
+  /**
+   * Mark a specific date as absent
+   */
+  markAbsent: async (data: AbsentDayMark): Promise<Clock> => {
+    const { data: response } = await api.post<{ absence: Clock }>('/clocks/mark-absent', data);
+    return response.absence;
   }
 };
 

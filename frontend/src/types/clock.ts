@@ -2,7 +2,7 @@ export interface Clock {
   id: number;
   user_id: number;
   clock_time: string;
-  status: 'check-in' | 'check-out';
+  status: 'check-in' | 'check-out' | 'absent';
   created_at: string;
 }
 
@@ -16,6 +16,8 @@ export interface WorkingHours {
   check_in: string | null;
   check_out: string | null;
   hours_worked: number;
+  is_absent?: boolean;
+  missing_checkout?: boolean;
 }
 
 export interface UserClocks {
@@ -40,6 +42,8 @@ export interface DailyReport {
   check_in: string | null;
   check_out: string | null;
   hours_worked: number;
+  is_absent?: boolean;
+  missing_checkout?: boolean;
 }
 
 export interface WeeklyReport {
@@ -100,6 +104,19 @@ export interface EmployeeReport {
 }
 
 export interface ClockIn {
-  status: 'check-in' | 'check-out';
+  status: 'check-in' | 'check-out' | 'absent';
   clock_time?: string;
+}
+
+export interface AbsentDayMark {
+  date: string;
+}
+
+export interface ClockIssues {
+  missing_checkouts: string[];
+  absent_days: string[];
+  period: {
+    start: string;
+    end: string;
+  };
 }

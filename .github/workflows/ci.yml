@@ -40,8 +40,8 @@ jobs:
       - name: Install & Build
         run: npm ci && npm run build
 
-      - name: Test
-        run: npm test
+      - name: Test with Coverage
+        run: npm run test:ci
         env:
           DB_HOST: localhost
           DB_PORT: ${{ secrets.DB_PORT }}
@@ -50,6 +50,44 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           NODE_ENV: test
+
+      - name: Upload Coverage Reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./backend/coverage/lcov.info,./backend/coverage/cobertura-coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload Coverage to Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage-report
+          path: backend/coverage/
+          retention-days: 30
+
+      - name: Coverage Summary
+        if: always()
+        run: |
+          echo "### Backend Test Coverage Report 📊" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e "
+              const coverage = require('./coverage/coverage-summary.json');
+              const total = coverage.total;
+              console.log('| Metric | Coverage | Status |');
+              console.log('|--------|----------|--------|');
+              console.log(\`| Lines | \${total.lines.pct}% | \${total.lines.pct >= 70 ? '✅' : '⚠️'} |\`);
+              console.log(\`| Statements | \${total.statements.pct}% | \${total.statements.pct >= 70 ? '✅' : '⚠️'} |\`);
+              console.log(\`| Functions | \${total.functions.pct}% | \${total.functions.pct >= 65 ? '✅' : '⚠️'} |\`);
+              console.log(\`| Branches | \${total.branches.pct}% | \${total.branches.pct >= 60 ? '✅' : '⚠️'} |\`);
+            " >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Coverage summary not found" >> $GITHUB_STEP_SUMMARY
+          fi
 
   frontend:
     name: Frontend

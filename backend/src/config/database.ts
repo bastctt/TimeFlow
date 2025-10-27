@@ -20,7 +20,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000,
   query_timeout: 30000,
   statement_timeout: 30000,
-  application_name: 'timemanager_api',
+  application_name: 'timeflow_api',
 });
 
 pool.on('error', (err: Error) => {

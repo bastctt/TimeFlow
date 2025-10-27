@@ -4,8 +4,12 @@ import app from '../index';
 import { UserModel } from '../models/User.model';
 import { TeamModel } from '../models/Team.model';
 import { generateToken } from '../middleware/auth';
+import type { User } from '../types/user';
+import type { Team } from '../types/team';
 
-jest.mock('../config/database');
+jest.mock('../config/database', () => ({
+  default: {},
+}));
 jest.mock('../models/User.model', () => ({
   UserModel: {
     findById: jest.fn(),
@@ -15,7 +19,6 @@ jest.mock('../models/User.model', () => ({
 jest.mock('../models/Team.model', () => ({
   TeamModel: {
     findById: jest.fn(),
-    findAll: jest.fn(),
     findByManagerId: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -24,30 +27,31 @@ jest.mock('../models/Team.model', () => ({
   },
 }));
 
+const mockUserModel = UserModel as jest.Mocked<typeof UserModel>;
+const mockTeamModel = TeamModel as jest.Mocked<typeof TeamModel>;
+
 describe('Teams Routes', () => {
-  const mockManager = {
+  const mockManager: User = {
     id: 1,
     email: 'manager@test.com',
+    password_hash: 'hashed_password',
     first_name: 'Manager',
     last_name: 'Test',
-    role: 'Manager',
-    team_id: 1,
-    created_at: new Date(),
-    updated_at: new Date()
+    role: 'Manager' as const,
+    team_id: 1
   };
 
-  const mockEmployee = {
+  const mockEmployee: User = {
     id: 2,
     email: 'employee@test.com',
+    password_hash: 'hashed_password',
     first_name: 'Employee',
     last_name: 'Test',
-    role: 'Employé',
-    team_id: 1,
-    created_at: new Date(),
-    updated_at: new Date()
+    role: 'Employé' as const,
+    team_id: 1
   };
 
-  const mockTeam = {
+  const mockTeam: Team = {
     id: 1,
     name: 'Test Team',
     description: 'Test Description',
@@ -65,9 +69,9 @@ describe('Teams Routes', () => {
 
   describe('POST /api/teams', () => {
     it('should create team as manager', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockManager);
-      (TeamModel.create as jest.Mock).mockResolvedValue(mockTeam);
-      (UserModel.update as jest.Mock).mockResolvedValue(mockManager);
+      mockUserModel.findById.mockResolvedValue(mockManager);
+      mockTeamModel.create.mockResolvedValue(mockTeam);
+      mockUserModel.update.mockResolvedValue(mockManager);
 
       const res = await request(app)
         .post('/api/teams')
@@ -83,7 +87,7 @@ describe('Teams Routes', () => {
     });
 
     it('should reject employee', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .post('/api/teams')
@@ -104,8 +108,8 @@ describe('Teams Routes', () => {
 
   describe('GET /api/teams', () => {
     it('should get all teams as manager', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockManager);
-      (TeamModel.findByManagerId as jest.Mock).mockResolvedValue([mockTeam]);
+      mockUserModel.findById.mockResolvedValue(mockManager);
+      mockTeamModel.findByManagerId.mockResolvedValue([mockTeam]);
 
       const res = await request(app)
         .get('/api/teams')
@@ -117,7 +121,7 @@ describe('Teams Routes', () => {
     });
 
     it('should reject employees', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .get('/api/teams')
@@ -129,8 +133,8 @@ describe('Teams Routes', () => {
 
   describe('GET /api/teams/:id', () => {
     it('should get team by id', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockManager);
-      (TeamModel.findById as jest.Mock).mockResolvedValue(mockTeam);
+      mockUserModel.findById.mockResolvedValue(mockManager);
+      mockTeamModel.findById.mockResolvedValue(mockTeam);
 
       const res = await request(app)
         .get(`/api/teams/${mockTeam.id}`)
@@ -142,8 +146,8 @@ describe('Teams Routes', () => {
     });
 
     it('should return 404 for non-existent team', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockManager);
-      (TeamModel.findById as jest.Mock).mockResolvedValue(null);
+      mockUserModel.findById.mockResolvedValue(mockManager);
+      mockTeamModel.findById.mockResolvedValue(null);
 
       const res = await request(app)
         .get('/api/teams/99999')
@@ -155,9 +159,9 @@ describe('Teams Routes', () => {
 
   describe('GET /api/teams/:id/members', () => {
     it('should get team members as manager', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockManager);
-      (TeamModel.findById as jest.Mock).mockResolvedValue(mockTeam);
-      (TeamModel.getMembers as jest.Mock).mockResolvedValue([mockEmployee]);
+      mockUserModel.findById.mockResolvedValue(mockManager);
+      mockTeamModel.findById.mockResolvedValue(mockTeam);
+      mockTeamModel.getMembers.mockResolvedValue([mockEmployee]);
 
       const res = await request(app)
         .get(`/api/teams/${mockTeam.id}/members`)
@@ -169,8 +173,8 @@ describe('Teams Routes', () => {
     });
 
     it('should return 404 for non-existent team', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockManager);
-      (TeamModel.findById as jest.Mock).mockResolvedValue(null);
+      mockUserModel.findById.mockResolvedValue(mockManager);
+      mockTeamModel.findById.mockResolvedValue(null);
 
       const res = await request(app)
         .get('/api/teams/99999/members')
@@ -180,7 +184,7 @@ describe('Teams Routes', () => {
     });
 
     it('should reject employee access', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .get(`/api/teams/${mockTeam.id}/members`)
@@ -194,8 +198,8 @@ describe('Teams Routes', () => {
     it('should update team as manager', async () => {
       const updatedTeam = { ...mockTeam, name: 'Updated Team' };
 
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockManager);
-      (TeamModel.update as jest.Mock).mockResolvedValue(updatedTeam);
+      mockUserModel.findById.mockResolvedValue(mockManager);
+      mockTeamModel.update.mockResolvedValue(updatedTeam);
 
       const res = await request(app)
         .put(`/api/teams/${mockTeam.id}`)
@@ -208,7 +212,7 @@ describe('Teams Routes', () => {
     });
 
     it('should reject employee', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .put(`/api/teams/${mockTeam.id}`)
@@ -221,11 +225,11 @@ describe('Teams Routes', () => {
 
   describe('POST /api/teams/:id/members', () => {
     it('should add member as manager', async () => {
-      (UserModel.findById as jest.Mock)
+      mockUserModel.findById
         .mockResolvedValueOnce(mockManager)
         .mockResolvedValueOnce(mockEmployee);
-      (TeamModel.findById as jest.Mock).mockResolvedValue(mockTeam);
-      (UserModel.update as jest.Mock).mockResolvedValue(mockEmployee);
+      mockTeamModel.findById.mockResolvedValue(mockTeam);
+      mockUserModel.update.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .post(`/api/teams/${mockTeam.id}/members`)
@@ -236,7 +240,7 @@ describe('Teams Routes', () => {
     });
 
     it('should reject employee', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .post(`/api/teams/${mockTeam.id}/members`)
@@ -249,7 +253,7 @@ describe('Teams Routes', () => {
 
   describe('DELETE /api/teams/:teamId/members/:userId', () => {
     it('should reject employee', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .delete(`/api/teams/${mockTeam.id}/members/${mockEmployee.id}`)
@@ -259,11 +263,11 @@ describe('Teams Routes', () => {
     });
 
     it('should remove member as manager', async () => {
-      (UserModel.findById as jest.Mock)
+      mockUserModel.findById
         .mockResolvedValueOnce(mockManager)
         .mockResolvedValueOnce(mockEmployee);
-      (TeamModel.findById as jest.Mock).mockResolvedValue(mockTeam);
-      (UserModel.update as jest.Mock).mockResolvedValue(mockEmployee);
+      mockTeamModel.findById.mockResolvedValue(mockTeam);
+      mockUserModel.update.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .delete(`/api/teams/${mockTeam.id}/members/${mockEmployee.id}`)
@@ -275,7 +279,7 @@ describe('Teams Routes', () => {
 
   describe('DELETE /api/teams/:id', () => {
     it('should reject employee', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockEmployee);
+      mockUserModel.findById.mockResolvedValue(mockEmployee);
 
       const res = await request(app)
         .delete(`/api/teams/${mockTeam.id}`)
@@ -285,8 +289,8 @@ describe('Teams Routes', () => {
     });
 
     it('should delete team as manager', async () => {
-      (UserModel.findById as jest.Mock).mockResolvedValue(mockManager);
-      (TeamModel.delete as jest.Mock).mockResolvedValue(true);
+      mockUserModel.findById.mockResolvedValue(mockManager);
+      mockTeamModel.delete.mockResolvedValue(true);
 
       const res = await request(app)
         .delete(`/api/teams/${mockTeam.id}`)

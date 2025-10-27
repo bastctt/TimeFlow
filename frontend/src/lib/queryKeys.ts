@@ -22,12 +22,27 @@ export const queryKeys = {
     my: (startDate?: string, endDate?: string) =>
       ['clocks', 'my', { startDate, endDate }] as const,
     status: ['clocks', 'status'] as const,
+    issues: (startDate?: string, endDate?: string) =>
+      ['clocks', 'issues', { startDate, endDate }] as const,
   },
 
   // Reports
   reports: {
     team: (type: string, startDate: string, endDate: string) =>
       ['reports', type, { startDate, endDate }] as const,
+  },
+
+  // Absences
+  absences: {
+    all: ['absences'] as const,
+    my: (startDate?: string, endDate?: string) =>
+      ['absences', 'my', { startDate, endDate }] as const,
+    team: (startDate?: string, endDate?: string) =>
+      ['absences', 'team', { startDate, endDate }] as const,
+    potential: (startDate?: string, endDate?: string) =>
+      ['absences', 'potential', { startDate, endDate }] as const,
+    stats: (startDate?: string, endDate?: string) =>
+      ['absences', 'stats', { startDate, endDate }] as const,
   },
 
   // Auth

@@ -6,6 +6,7 @@ import { teamsApi } from '@/services/teams';
 import { usersApi } from '@/services/users';
 import { clocksApi } from '@/services/clocks';
 import { reportsApi } from '@/services/clocks';
+import { absencesApi } from '@/services/absences';
 import { calculateReportDateRange } from './useReports';
 
 /**
@@ -72,8 +73,9 @@ export function usePrefetchData() {
         month: calculateReportDateRange('month'),
         custom: calculateReportDateRange('custom'),
       };
+      console.log('[usePrefetchData] Prefetching reports with date ranges:', dateRanges);
 
-      // Prefetch all report periods in parallel
+      // Prefetch all report periods + team absences in parallel
       await Promise.all([
         queryClient.prefetchQuery({
           queryKey: queryKeys.reports.team('team', dateRanges.week.startDate, dateRanges.week.endDate),
@@ -88,6 +90,17 @@ export function usePrefetchData() {
         queryClient.prefetchQuery({
           queryKey: queryKeys.reports.team('team', dateRanges.custom.startDate, dateRanges.custom.endDate),
           queryFn: () => reportsApi.getTeamReport('team', dateRanges.custom.startDate, dateRanges.custom.endDate),
+          staleTime: 1000 * 60 * 5,
+        }),
+        // Prefetch team absences for Planning view
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.absences.team(dateRanges.week.startDate, dateRanges.week.endDate),
+          queryFn: () => absencesApi.getTeamAbsences(dateRanges.week.startDate, dateRanges.week.endDate),
+          staleTime: 1000 * 60 * 5,
+        }),
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.absences.team(dateRanges.month.startDate, dateRanges.month.endDate),
+          queryFn: () => absencesApi.getTeamAbsences(dateRanges.month.startDate, dateRanges.month.endDate),
           staleTime: 1000 * 60 * 5,
         }),
       ]);
@@ -121,7 +134,7 @@ export function usePrefetchData() {
         today: getWeekRange(new Date()),
       };
 
-      // Prefetch all weeks in parallel
+      // Prefetch all weeks + absences in parallel
       await Promise.all([
         queryClient.prefetchQuery({
           queryKey: queryKeys.clocks.my(weekRanges.prev.start, weekRanges.prev.end),
@@ -141,6 +154,22 @@ export function usePrefetchData() {
         queryClient.prefetchQuery({
           queryKey: queryKeys.clocks.my(weekRanges.today.start, weekRanges.today.end),
           queryFn: () => clocksApi.getMyClocks(weekRanges.today.start, weekRanges.today.end),
+          staleTime: 1000 * 60 * 5,
+        }),
+        // Prefetch my absences for Planning view
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.absences.my(weekRanges.current.start, weekRanges.current.end),
+          queryFn: () => absencesApi.getMyAbsences(weekRanges.current.start, weekRanges.current.end),
+          staleTime: 1000 * 60 * 5,
+        }),
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.absences.my(weekRanges.prev.start, weekRanges.prev.end),
+          queryFn: () => absencesApi.getMyAbsences(weekRanges.prev.start, weekRanges.prev.end),
+          staleTime: 1000 * 60 * 5,
+        }),
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.absences.my(weekRanges.next.start, weekRanges.next.end),
+          queryFn: () => absencesApi.getMyAbsences(weekRanges.next.start, weekRanges.next.end),
           staleTime: 1000 * 60 * 5,
         }),
       ]);

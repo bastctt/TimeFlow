@@ -2,12 +2,12 @@ export interface Clock {
   id: number;
   user_id: number;
   clock_time: Date;
-  status: 'check-in' | 'check-out';
+  status: 'check-in' | 'check-out' | 'absent';
   created_at: Date;
 }
 
 export interface ClockCreate {
-  status: 'check-in' | 'check-out';
+  status: 'check-in' | 'check-out' | 'absent';
   clock_time?: Date; // Optional: defaults to current time
 }
 
@@ -22,6 +22,8 @@ export interface WorkingHours {
   check_in: Date | null;
   check_out: Date | null;
   hours_worked: number;
+  is_absent?: boolean; // Indicates if the day was marked as absent
+  missing_checkout?: boolean; // Indicates if check-in exists but no check-out
 }
 
 export interface DailyReport {
@@ -33,6 +35,8 @@ export interface DailyReport {
   check_in: Date | null;
   check_out: Date | null;
   hours_worked: number;
+  is_absent?: boolean;
+  missing_checkout?: boolean;
 }
 
 export interface WeeklyReport {

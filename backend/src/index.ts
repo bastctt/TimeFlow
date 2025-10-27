@@ -10,6 +10,7 @@ import teamsRoutes from './routes/teams';
 import usersRoutes from './routes/users';
 import clocksRoutes from './routes/clocks';
 import reportsRoutes from './routes/reports';
+import absencesRoutes from './routes/absences';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
@@ -80,6 +81,7 @@ app.use('/api/teams', teamsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clocks', clocksRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/absences', absencesRoutes);
 
 // 404 handler
 app.use((req, res) => {

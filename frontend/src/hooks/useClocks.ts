@@ -2,28 +2,30 @@ import { useQuery, useQueries } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { clocksApi } from '@/services/clocks';
 import { queryKeys } from '@/lib/queryKeys';
-import type { UserClocks } from '@/types/clock';
+import type { UserClocks, ClockIssues, ClockStatus } from '@/types/clock';
 
 export function useClockStatus() {
-  return useQuery({
+  return useQuery<ClockStatus>({
     queryKey: queryKeys.clocks.status,
     queryFn: () => clocksApi.getStatus(),
     staleTime: 1000 * 30, // 30 seconds
     gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
-    refetchOnMount: false,
-    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData: ClockStatus | undefined) => previousData,
   });
 }
 
 // Hook for fetching user's clocks for a specific date range (used in Dashboard)
 export function useMyClocks(startDate: string, endDate: string) {
-  return useQuery({
+  return useQuery<UserClocks>({
     queryKey: queryKeys.clocks.my(startDate, endDate),
     queryFn: () => clocksApi.getMyClocks(startDate, endDate),
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
-    refetchOnMount: true, // Refetch if data is stale (invalidated after clock in/out)
-    refetchOnWindowFocus: true,
+    refetchOnMount: 'always', // Always refetch but show cached data first
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData: UserClocks | undefined) => previousData, // Keep previous data while refetching
   });
 }
 
@@ -70,38 +72,42 @@ export function usePlanningClocks(currentWeek: Date, isEmployee: boolean) {
     queries: [
       {
         queryKey: queryKeys.clocks.my(weekRanges.prev.start, weekRanges.prev.end),
-        queryFn: () => clocksApi.getMyClocks(weekRanges.prev.start, weekRanges.prev.end),
+        queryFn: (): Promise<UserClocks> => clocksApi.getMyClocks(weekRanges.prev.start, weekRanges.prev.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
-        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnMount: 'always' as const,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData: UserClocks | undefined) => previousData,
         enabled: isEmployee,
       },
       {
         queryKey: queryKeys.clocks.my(weekRanges.current.start, weekRanges.current.end),
-        queryFn: () => clocksApi.getMyClocks(weekRanges.current.start, weekRanges.current.end),
+        queryFn: (): Promise<UserClocks> => clocksApi.getMyClocks(weekRanges.current.start, weekRanges.current.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
-        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnMount: 'always' as const,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData: UserClocks | undefined) => previousData,
         enabled: isEmployee,
       },
       {
         queryKey: queryKeys.clocks.my(weekRanges.next.start, weekRanges.next.end),
-        queryFn: () => clocksApi.getMyClocks(weekRanges.next.start, weekRanges.next.end),
+        queryFn: (): Promise<UserClocks> => clocksApi.getMyClocks(weekRanges.next.start, weekRanges.next.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
-        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnMount: 'always' as const,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData: UserClocks | undefined) => previousData,
         enabled: isEmployee,
       },
       {
         queryKey: queryKeys.clocks.my(weekRanges.today.start, weekRanges.today.end),
-        queryFn: () => clocksApi.getMyClocks(weekRanges.today.start, weekRanges.today.end),
+        queryFn: (): Promise<UserClocks> => clocksApi.getMyClocks(weekRanges.today.start, weekRanges.today.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
-        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnMount: 'always' as const,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData: UserClocks | undefined) => previousData,
         enabled: isEmployee,
       },
     ],
@@ -146,38 +152,42 @@ export function useTeamPlanningClocks(
     queries: members.flatMap(member => [
       {
         queryKey: queryKeys.users.clocks(member.id, weekRanges.prev.start, weekRanges.prev.end),
-        queryFn: () => clocksApi.getUserClocks(member.id, weekRanges.prev.start, weekRanges.prev.end),
+        queryFn: (): Promise<UserClocks> => clocksApi.getUserClocks(member.id, weekRanges.prev.start, weekRanges.prev.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
-        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnMount: 'always' as const,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData: UserClocks | undefined) => previousData,
         enabled: isManager && members.length > 0,
       },
       {
         queryKey: queryKeys.users.clocks(member.id, weekRanges.current.start, weekRanges.current.end),
-        queryFn: () => clocksApi.getUserClocks(member.id, weekRanges.current.start, weekRanges.current.end),
+        queryFn: (): Promise<UserClocks> => clocksApi.getUserClocks(member.id, weekRanges.current.start, weekRanges.current.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
-        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnMount: 'always' as const,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData: UserClocks | undefined) => previousData,
         enabled: isManager && members.length > 0,
       },
       {
         queryKey: queryKeys.users.clocks(member.id, weekRanges.next.start, weekRanges.next.end),
-        queryFn: () => clocksApi.getUserClocks(member.id, weekRanges.next.start, weekRanges.next.end),
+        queryFn: (): Promise<UserClocks> => clocksApi.getUserClocks(member.id, weekRanges.next.start, weekRanges.next.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
-        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnMount: 'always' as const,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData: UserClocks | undefined) => previousData,
         enabled: isManager && members.length > 0,
       },
       {
         queryKey: queryKeys.users.clocks(member.id, weekRanges.today.start, weekRanges.today.end),
-        queryFn: () => clocksApi.getUserClocks(member.id, weekRanges.today.start, weekRanges.today.end),
+        queryFn: (): Promise<UserClocks> => clocksApi.getUserClocks(member.id, weekRanges.today.start, weekRanges.today.end),
         staleTime: 1000 * 60 * 5,
         gcTime: 1000 * 60 * 30,
-        refetchOnMount: true, // Refetch if data is stale (invalidated)
+        refetchOnMount: 'always' as const,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData: UserClocks | undefined) => previousData,
         enabled: isManager && members.length > 0,
       },
     ]),
@@ -201,4 +211,17 @@ export function useTeamPlanningClocks(
       weekRanges,
     };
   }, [teamQueries, members, weekRanges]);
+}
+
+// Hook to detect clock issues (missing checkouts and absent days)
+export function useClockIssues(startDate?: string, endDate?: string) {
+  return useQuery<ClockIssues>({
+    queryKey: queryKeys.clocks.issues(startDate, endDate),
+    queryFn: () => clocksApi.detectIssues(startDate, endDate),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData: ClockIssues | undefined) => previousData,
+  });
 }
