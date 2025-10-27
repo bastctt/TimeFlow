@@ -17,7 +17,6 @@ export default function ResetPassword() {
   const navigate = useNavigate();
   const token = searchParams.get('token');
 
-  const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [tokenValid, setTokenValid] = useState(false);
@@ -48,13 +47,15 @@ export default function ResetPassword() {
           toast.error('Token invalide ou expiré');
           navigate('/login');
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Token verification error:', error);
-        toast.error(error.response?.data?.error || 'Token invalide ou expiré');
+        const errorMessage = error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+          : 'Token invalide ou expiré';
+        toast.error(errorMessage || 'Token invalide ou expiré');
         navigate('/login');
       } finally {
         setVerifying(false);
-        setLoading(false);
       }
     };
 
@@ -89,9 +90,12 @@ export default function ResetPassword() {
       setTimeout(() => {
         navigate('/dashboard');
       }, 1000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Reset password error:', error);
-      toast.error(error.response?.data?.error || 'Erreur lors de la réinitialisation');
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : 'Erreur lors de la réinitialisation';
+      toast.error(errorMessage || 'Erreur lors de la réinitialisation');
     } finally {
       setSubmitting(false);
     }

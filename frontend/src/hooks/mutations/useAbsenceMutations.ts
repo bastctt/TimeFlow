@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { absencesApi } from '@/services/absences';
-import { queryKeys } from '../useAbsences';
 import { toast } from 'sonner';
 import type { AbsenceCreate, AbsenceUpdate } from '@/types/absence';
 
