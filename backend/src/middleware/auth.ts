@@ -29,8 +29,8 @@ export const authenticateToken = (
     }
 
     const decoded = jwt.verify(token, secret, {
-      issuer: 'timemanager-api',
-      audience: 'timemanager-client',
+      issuer: 'timeflow-api',
+      audience: 'timeflow-client',
       algorithms: ['HS256']
     }) as { id: number; email: string };
 
@@ -60,8 +60,8 @@ export const generateToken = (payload: { id: number; email: string }): string =>
 
   return jwt.sign(payload, secret, {
     expiresIn: '24h',
-    issuer: 'timemanager-api',
-    audience: 'timemanager-client',
+    issuer: 'timeflow-api',
+    audience: 'timeflow-client',
     algorithm: 'HS256'
   });
 };

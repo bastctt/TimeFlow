@@ -30,11 +30,11 @@ router.get(
         return;
       }
 
-      // Get current manager
-      const manager = await UserModel.findById(req.user.id);
+      // Get teams managed by this manager
+      const managedTeams = await TeamModel.findByManagerId(req.user.id);
 
-      if (!manager || !manager.team_id) {
-        res.status(400).json({ error: 'Manager not assigned to a team' });
+      if (!managedTeams || managedTeams.length === 0) {
+        res.status(400).json({ error: 'Manager not assigned to any team' });
         return;
       }
 
@@ -42,12 +42,13 @@ router.get(
       const type = (req.query.type as string) || 'team';
       const teamIdParam = req.query.team_id ? parseInt(req.query.team_id as string) : null;
 
-      // Determine which team to report on
-      const teamId = teamIdParam || manager.team_id;
+      // Determine which team to report on (default to first managed team)
+      const teamId = teamIdParam || managedTeams[0].id;
 
       // Verify manager has access to this team
-      if (teamId !== manager.team_id) {
-        res.status(403).json({ error: 'Access forbidden: You can only view reports for your team' });
+      const hasAccess = managedTeams.some(t => t.id === teamId);
+      if (!hasAccess) {
+        res.status(403).json({ error: 'Access forbidden: You can only view reports for your teams' });
         return;
       }
 
@@ -116,6 +117,7 @@ router.get(
         // Team report includes both daily and summary
         const dailyReports = await ClockModel.getDailyReports(userIds, startDate, endDate);
         const weeklyReports = await ClockModel.getWeeklyReports(userIds, startDate, endDate);
+        const advancedKPIs = await ClockModel.getAdvancedKPIs(userIds, startDate, endDate);
 
         const totalHours = dailyReports.reduce((sum, report) => sum + report.hours_worked, 0);
 
@@ -130,7 +132,8 @@ router.get(
             (totalHours / employees.length).toFixed(2)
           ),
           daily_reports: dailyReports,
-          weekly_reports: weeklyReports
+          weekly_reports: weeklyReports,
+          advanced_kpis: advancedKPIs
         };
 
         res.status(200).json(teamReport);

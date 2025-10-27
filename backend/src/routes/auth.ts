@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { validate } from '../middleware/validation';
 import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth';
 import { UserModel } from '../models/User.model';
+import { PasswordResetTokenModel } from '../models/PasswordResetToken.model';
+import { emailService } from '../services/email.service';
 import type { UserRegistration, UserLogin } from '../types/user';
 
 const router = Router();
@@ -195,6 +197,137 @@ router.put(
       });
     } catch (error) {
       console.error('Update user error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Request password reset endpoint (public)
+router.post(
+  '/request-reset',
+  validate([
+    { field: 'email', required: true, type: 'email' }
+  ]),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email } = req.body;
+
+      // Find user by email
+      const user = await UserModel.findByEmail(email);
+
+      // Always return success to prevent email enumeration
+      // (don't reveal if email exists or not)
+      if (!user) {
+        res.status(200).json({
+          message: 'Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.'
+        });
+        return;
+      }
+
+      // Create reset token
+      const { token } = await PasswordResetTokenModel.create(user.id);
+
+      // Send email
+      await emailService.sendPasswordResetEmail(
+        user.email,
+        user.first_name,
+        token
+      );
+
+      res.status(200).json({
+        message: 'Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.'
+      });
+    } catch (error) {
+      console.error('Password reset request error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Verify reset token endpoint (public)
+router.post(
+  '/verify-reset-token',
+  validate([
+    { field: 'token', required: true, type: 'string' }
+  ]),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { token } = req.body;
+
+      // Verify token
+      const userId = await PasswordResetTokenModel.verify(token);
+
+      if (!userId) {
+        res.status(400).json({
+          error: 'Token invalide ou expiré'
+        });
+        return;
+      }
+
+      // Get user info (without sensitive data)
+      const user = await UserModel.findById(userId);
+
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      res.status(200).json({
+        valid: true,
+        email: user.email,
+        first_name: user.first_name
+      });
+    } catch (error) {
+      console.error('Verify reset token error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Reset password endpoint (public)
+router.post(
+  '/reset-password',
+  validate([
+    { field: 'token', required: true, type: 'string' },
+    { field: 'password', required: true, type: 'string', minLength: 6 }
+  ]),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { token, password } = req.body;
+
+      // Verify token
+      const userId = await PasswordResetTokenModel.verify(token);
+
+      if (!userId) {
+        res.status(400).json({
+          error: 'Token invalide ou expiré'
+        });
+        return;
+      }
+
+      // Update user password
+      const user = await UserModel.findById(userId);
+
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      // Update password (will be hashed by the model)
+      await UserModel.updatePassword(userId, password);
+
+      // Mark token as used
+      await PasswordResetTokenModel.markAsUsed(token);
+
+      // Generate new JWT token for automatic login
+      const jwtToken = generateToken({ id: user.id, email: user.email });
+
+      res.status(200).json({
+        message: 'Mot de passe réinitialisé avec succès',
+        token: jwtToken
+      });
+    } catch (error) {
+      console.error('Reset password error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

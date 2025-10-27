@@ -2,110 +2,86 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: timemanager_db
+    container_name: timeflow_db
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-timemanager}
-      # Security: Set stronger authentication method
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
-      # Security: Limit connections
-      POSTGRES_MAX_CONNECTIONS: "100"
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      # Security: Only expose to localhost in development
-      - "127.0.0.1:${DB_PORT:-5432}:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - timeflow_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
       timeout: 5s
       retries: 5
+
+  # MailHog (SMTP test server)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: timeflow_mailhog
+    ports:
+      - "8025:8025"  # Web UI
     networks:
-      - timemanager_network
-    # Security: Run as non-root user
-    user: postgres
-    # Security: Restrict container capabilities
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - DAC_OVERRIDE
-      - SETGID
-      - SETUID
-    # Security: Read-only root filesystem (except /var/lib/postgresql/data)
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/run/postgresql
+      - timeflow_network
+    restart: unless-stopped
 
   # Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: timemanager_backend
+    container_name: timeflow_backend
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-3000}
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
       DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-timemanager}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      JWT_SECRET: ${JWT_SECRET:-CHANGE_THIS_SECRET_IN_PRODUCTION}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
-      # SSL disabled for local Docker PostgreSQL (no SSL configured)
-      DB_SSL_ENABLED: ${DB_SSL_ENABLED:-false}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      DB_SSL_ENABLED: ${DB_SSL_ENABLED}
+      EMAIL_FROM: ${EMAIL_FROM}
+      APP_URL: ${APP_URL}
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
     expose:
       - "3000"
     depends_on:
       postgres:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     networks:
-      - timemanager_network
+      - timeflow_network
     restart: unless-stopped
-    # Security: Restrict container capabilities
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-    # Security: Read-only root filesystem
-    read_only: true
-    tmpfs:
-      - /tmp
-    # Security: No new privileges
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
-  # Frontend (React + Vite)
+  # Frontend
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL:-http://localhost}
-    container_name: timemanager_frontend
+    container_name: timeflow_frontend
     expose:
       - "80"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     networks:
-      - timemanager_network
+      - timeflow_network
     restart: unless-stopped
 
   # Reverse Proxy (Nginx)
   reverse-proxy:
     image: nginx:alpine
-    container_name: timemanager_reverse_proxy
+    container_name: timeflow_reverse_proxy
     ports:
       - "80:80"
     volumes:
@@ -114,18 +90,13 @@ services:
       - frontend
       - backend
     networks:
-      - timemanager_network
+      - timeflow_network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
 
 volumes:
   postgres_data:
     driver: local
 
 networks:
-  timemanager_network:
+  timeflow_network:
     driver: bridge

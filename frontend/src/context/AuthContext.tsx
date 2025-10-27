@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import { useQueryClient } from '@tanstack/react-query';
 import type { User, AuthResponse, LoginCredentials, RegisterData } from '../types/user';
 
 interface AuthContextType {
@@ -29,6 +30,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,8 +46,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const response = await axios.get<{ user: User }>(`${API_URL}/api/auth/me`);
           setUser(response.data.user);
-        } catch (error) {
+        } catch (err) {
           // Token invalid, clear it
+          console.error('Failed to fetch user:', err);
           Cookies.remove('token');
           delete axios.defaults.headers.common['Authorization'];
         }
@@ -60,13 +63,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await axios.get<{ user: User }>(`${API_URL}/api/auth/me`);
       setUser(response.data.user);
-    } catch (error) {
+    } catch (err) {
+      console.error('Failed to fetch user:', err);
       throw new Error('Failed to fetch user data');
     }
   };
 
   const login = async (credentials: LoginCredentials) => {
     try {
+      // Clear all cached data before login to avoid stale data from previous user
+      queryClient.clear();
+
       const response = await axios.post<AuthResponse>(
         `${API_URL}/api/auth/login`,
         credentials
@@ -116,6 +123,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
     Cookies.remove('token');
     delete axios.defaults.headers.common['Authorization'];
+
+    // Clear all cached data on logout to prevent data leakage between users
+    queryClient.clear();
   };
 
   const updateUser = async (data: Partial<User>) => {

@@ -1,30 +1,38 @@
-import axios from 'axios';
+import api from '@/lib/api';
 import type {
   Clock,
   ClockStatus,
   ClockIn,
   UserClocks,
   TeamReport,
-  EmployeeReport
+  EmployeeReport,
+  ClockIssues,
+  AbsentDayMark
 } from '../types/clock';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export const clocksApi = {
   /**
    * Clock in or clock out
    */
   clockIn: async (data: ClockIn): Promise<Clock> => {
-    const response = await axios.post<{ clock: Clock }>(`${API_URL}/api/clocks`, data);
-    return response.data.clock;
+    const { data: response } = await api.post<{ clock: Clock }>('/clocks', data);
+    return response.clock;
+  },
+
+  /**
+   * Clock in or clock out (alias)
+   */
+  clockInOut: async (data: ClockIn): Promise<Clock> => {
+    const { data: response } = await api.post<{ clock: Clock }>('/clocks', data);
+    return response.clock;
   },
 
   /**
    * Get current clock status
    */
   getStatus: async (): Promise<ClockStatus> => {
-    const response = await axios.get<ClockStatus>(`${API_URL}/api/clocks/status`);
-    return response.data;
+    const { data } = await api.get<ClockStatus>('/clocks/status');
+    return data;
   },
 
   /**
@@ -35,9 +43,8 @@ export const clocksApi = {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
 
-    const url = `${API_URL}/api/clocks${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await axios.get<UserClocks>(url);
-    return response.data;
+    const { data } = await api.get<UserClocks>(`/clocks${params.toString() ? `?${params.toString()}` : ''}`);
+    return data;
   },
 
   /**
@@ -52,11 +59,32 @@ export const clocksApi = {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
 
-    const url = `${API_URL}/api/users/${userId}/clocks${
+    const { data } = await api.get<UserClocks>(`/users/${userId}/clocks${
       params.toString() ? `?${params.toString()}` : ''
-    }`;
-    const response = await axios.get<UserClocks>(url);
-    return response.data;
+    }`);
+    return data;
+  },
+
+  /**
+   * Detect clock issues (missing checkouts and absent days)
+   */
+  detectIssues: async (startDate?: string, endDate?: string): Promise<ClockIssues> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+
+    const { data } = await api.get<ClockIssues>(`/clocks/detect-issues${
+      params.toString() ? `?${params.toString()}` : ''
+    }`);
+    return data;
+  },
+
+  /**
+   * Mark a specific date as absent
+   */
+  markAbsent: async (data: AbsentDayMark): Promise<Clock> => {
+    const { data: response } = await api.post<{ absence: Clock }>('/clocks/mark-absent', data);
+    return response.absence;
   }
 };
 
@@ -65,21 +93,21 @@ export const reportsApi = {
    * Get team reports (Manager only)
    */
   getTeamReport: async (
-    type: 'daily' | 'weekly' | 'team' = 'team',
+    type?: 'daily' | 'weekly' | 'team',
     startDate?: string,
     endDate?: string,
     teamId?: number
   ): Promise<TeamReport> => {
     const params = new URLSearchParams();
-    params.append('type', type);
+    if (type) params.append('type', type);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     if (teamId) params.append('team_id', teamId.toString());
 
-    const response = await axios.get<TeamReport>(
-      `${API_URL}/api/reports?${params.toString()}`
+    const { data } = await api.get<TeamReport>(
+      `/reports?${params.toString()}`
     );
-    return response.data;
+    return data;
   },
 
   /**
@@ -94,11 +122,11 @@ export const reportsApi = {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
 
-    const response = await axios.get<EmployeeReport>(
-      `${API_URL}/api/reports/employee/${employeeId}${
+    const { data } = await api.get<EmployeeReport>(
+      `/reports/employee/${employeeId}${
         params.toString() ? `?${params.toString()}` : ''
       }`
     );
-    return response.data;
+    return data;
   }
 };

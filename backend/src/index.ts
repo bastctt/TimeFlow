@@ -4,13 +4,13 @@ dotenv.config();
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import pool from './config/database';
 import authRoutes from './routes/auth';
 import teamsRoutes from './routes/teams';
 import usersRoutes from './routes/users';
 import clocksRoutes from './routes/clocks';
 import reportsRoutes from './routes/reports';
+import absencesRoutes from './routes/absences';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
@@ -51,28 +51,6 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// Rate limiting - General
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Rate limiting
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: 'Too many authentication attempts, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
-app.use('/api/', generalLimiter);
-
 // Body parser with size limits
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
@@ -103,6 +81,7 @@ app.use('/api/teams', teamsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clocks', clocksRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/absences', absencesRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -124,6 +103,9 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
 
 export default app;

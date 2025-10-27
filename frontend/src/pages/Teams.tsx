@@ -1,17 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FormEvent, ChangeEvent } from 'react';
 
-// services
-import { teamsApi } from '@/services/teams';
+// hooks
+import { useTeams, useTeamMembers } from '@/hooks/useTeams';
+import { useEmployees } from '@/hooks/useUsers';
+import {
+  useCreateTeam,
+  useUpdateTeam,
+  useDeleteTeam,
+  useAddTeamMember,
+  useRemoveTeamMember,
+} from '@/hooks/mutations/useTeamMutations';
 
 // types
-import type { Team, TeamCreate, TeamMember } from '@/types/team';
+import type { Team, TeamCreate } from '@/types/team';
 
 // context
 import { useAuth } from '@/context/AuthContext';
 
 // icons
-import { Users, Plus, Edit2, Trash2, UserCheck } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, UserCheck, UserMinus, UserPlus } from 'lucide-react';
 
 // shadcn/ui components
 import { Button } from '@/components/ui/button';
@@ -22,63 +30,54 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function Teams() {
   const { user } = useAuth();
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
-  const [viewingMembers, setViewingMembers] = useState<TeamMember[] | null>(null);
+  const [viewingTeamId, setViewingTeamId] = useState<number | null>(null);
   const [viewingTeamName, setViewingTeamName] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [membersDialogOpen, setMembersDialogOpen] = useState(false);
 
   const [formData, setFormData] = useState<TeamCreate>({
     name: '',
-    description: '',
-    manager_id: user?.id || 0
+    description: ''
   });
 
-  useEffect(() => {
-    loadTeams();
-  }, []);
+  // Queries
+  const { data: teams = [], isLoading: teamsLoading } = useTeams();
+  const { data: members = [], refetch: refetchMembers } = useTeamMembers(viewingTeamId || 0);
+  const { data: allEmployees = [] } = useEmployees();
 
-  const loadTeams = async () => {
-    try {
-      setLoading(true);
-      const data = await teamsApi.getAll();
-      setTeams(data);
-      setError('');
-    } catch (err) {
-      setError('Erreur lors du chargement des équipes');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Mutations
+  const createTeam = useCreateTeam();
+  const updateTeam = useUpdateTeam();
+  const deleteTeam = useDeleteTeam();
+  const addMember = useAddTeamMember();
+  const removeMember = useRemoveTeamMember();
+
+  // Filter available employees (not in current team)
+  const memberIds = members.map(m => m.id);
+  const availableEmployees = allEmployees.filter(emp => !memberIds.includes(emp.id));
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
 
     try {
       if (editingTeam) {
-        await teamsApi.update(editingTeam.id, formData);
-        setSuccess('Équipe mise à jour avec succès');
+        await updateTeam.mutateAsync({ id: editingTeam.id, data: formData });
       } else {
-        await teamsApi.create(formData);
-        setSuccess('Équipe créée avec succès');
+        await createTeam.mutateAsync(formData);
       }
 
       setShowModal(false);
       setEditingTeam(null);
       resetForm();
-      loadTeams();
     } catch (err) {
-      setError('Une erreur est survenue');
-      console.error(err);
+      console.error(err)
     }
   };
 
@@ -86,41 +85,73 @@ export default function Teams() {
     setEditingTeam(team);
     setFormData({
       name: team.name,
-      description: team.description || '',
-      manager_id: team.manager_id || user?.id || 0
+      description: team.description || ''
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette équipe ?')) return;
-
     try {
-      await teamsApi.delete(id);
-      setSuccess('Équipe supprimée avec succès');
-      loadTeams();
+      await deleteTeam.mutateAsync(id);
     } catch (err) {
-      setError('Erreur lors de la suppression');
-      console.error(err);
+      console.error(err)
     }
   };
 
-  const handleViewMembers = async (team: Team) => {
+  const handleViewMembers = (team: Team) => {
+    setViewingTeamId(team.id);
+    setViewingTeamName(team.name);
+    setShowAddMember(false);
+    setSelectedEmployeeId('');
+    setMembersDialogOpen(true);
+  };
+
+  const handleAddMember = async () => {
+    if (!viewingTeamId || !selectedEmployeeId) return;
+
     try {
-      const members = await teamsApi.getMembers(team.id);
-      setViewingMembers(members);
-      setViewingTeamName(team.name);
+      await addMember.mutateAsync({
+        teamId: viewingTeamId,
+        userId: parseInt(selectedEmployeeId)
+      });
+
+      setShowAddMember(false);
+      setSelectedEmployeeId('');
+
+      setTimeout(() => {
+        refetchMembers();
+      }, 150);
     } catch (err) {
-      setError('Erreur lors du chargement des membres');
-      console.error(err);
+      console.error(err)
+    }
+  };
+
+  const handleRemoveMember = async (memberId: number) => {
+    if (!viewingTeamId) return;
+
+    if (!confirm('Êtes-vous sûr de vouloir retirer ce membre de l\'équipe ?')) {
+      return;
+    }
+
+    try {
+      await removeMember.mutateAsync({
+        teamId: viewingTeamId,
+        userId: memberId
+      });
+
+      setTimeout(() => {
+        refetchMembers();
+      }, 100);
+    } catch (err) {
+      console.error(err)
     }
   };
 
   const resetForm = () => {
     setFormData({
       name: '',
-      description: '',
-      manager_id: user?.id || 0
+      description: ''
     });
   };
 
@@ -154,20 +185,8 @@ export default function Teams() {
         </Button>
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {success && (
-        <Alert>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
-
       {/* Teams Grid */}
-      {loading ? (
+      {teamsLoading ? (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">Chargement...</p>
@@ -289,35 +308,109 @@ export default function Teams() {
       </Dialog>
 
       {/* Members Dialog */}
-      <Dialog open={!!viewingMembers} onOpenChange={() => {
-        setViewingMembers(null);
-        setViewingTeamName('');
+      <Dialog open={membersDialogOpen} onOpenChange={(open) => {
+        setMembersDialogOpen(open);
+        if (!open) {
+          // Clear state after animation completes
+          setTimeout(() => {
+            setViewingTeamId(null);
+            setViewingTeamName('');
+            setShowAddMember(false);
+            setSelectedEmployeeId('');
+          }, 300);
+        }
       }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Membres de {viewingTeamName}</DialogTitle>
             <DialogDescription>
-              Liste des membres de cette équipe
+              Gérez les membres de cette équipe
             </DialogDescription>
           </DialogHeader>
-          {viewingMembers && viewingMembers.length === 0 ? (
+
+          {/* Add Member Section */}
+          {!showAddMember ? (
+            <Button
+              onClick={() => setShowAddMember(true)}
+              variant="outline"
+              size="sm"
+              disabled={availableEmployees.length === 0}
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Ajouter un membre
+            </Button>
+          ) : (
+            <div className="space-y-4 p-4 border rounded-lg">
+              <div className="space-y-2">
+                <Label>Sélectionner un employé</Label>
+                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un employé..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEmployees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id.toString()}>
+                        {emp.first_name} {emp.last_name} ({emp.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAddMember}
+                  disabled={!selectedEmployeeId}
+                  variant="outline"
+                  size="sm"
+                >
+                  Ajouter
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowAddMember(false);
+                    setSelectedEmployeeId('');
+                  }}
+                  variant="secondary"
+                  size="sm"
+                >
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Members List */}
+          {members && members.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">Aucun membre dans cette équipe</p>
           ) : (
             <div className="space-y-2">
-              {viewingMembers?.map((member) => (
+              {members?.map((member) => (
                 <div
                   key={member.id}
                   className="flex items-center justify-between p-4 border rounded-lg"
                 >
-                  <div>
-                    <p className="font-medium">
-                      {member.first_name} {member.last_name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{member.email}</p>
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <p className="font-medium">
+                        {member.first_name} {member.last_name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{member.email}</p>
+                    </div>
                   </div>
-                  <Badge variant={member.role === 'Manager' ? 'default' : 'secondary'}>
-                    {member.role}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={member.role === 'Manager' ? 'default' : 'secondary'}>
+                      {member.role}
+                    </Badge>
+                    {member.role !== 'Manager' && (
+                      <Button
+                        onClick={() => handleRemoveMember(member.id)}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        <UserMinus className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

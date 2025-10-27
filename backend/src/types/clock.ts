@@ -2,12 +2,12 @@ export interface Clock {
   id: number;
   user_id: number;
   clock_time: Date;
-  status: 'check-in' | 'check-out';
+  status: 'check-in' | 'check-out' | 'absent';
   created_at: Date;
 }
 
 export interface ClockCreate {
-  status: 'check-in' | 'check-out';
+  status: 'check-in' | 'check-out' | 'absent';
   clock_time?: Date; // Optional: defaults to current time
 }
 
@@ -22,6 +22,8 @@ export interface WorkingHours {
   check_in: Date | null;
   check_out: Date | null;
   hours_worked: number;
+  is_absent?: boolean; // Indicates if the day was marked as absent
+  missing_checkout?: boolean; // Indicates if check-in exists but no check-out
 }
 
 export interface DailyReport {
@@ -33,6 +35,8 @@ export interface DailyReport {
   check_in: Date | null;
   check_out: Date | null;
   hours_worked: number;
+  is_absent?: boolean;
+  missing_checkout?: boolean;
 }
 
 export interface WeeklyReport {
@@ -47,6 +51,17 @@ export interface WeeklyReport {
   days_worked: number;
 }
 
+export interface AdvancedKPIs {
+  attendance_rate: number; // Percentage of days worked vs workdays in period
+  active_employees_today: number; // Number of employees currently clocked in
+  average_check_in_time: string | null; // Average check-in time (HH:MM format)
+  punctuality_rate: number; // Percentage of check-ins before 9:30 AM
+  overtime_hours: number; // Total hours beyond 8h/day
+  total_workdays: number; // Number of workdays in period
+  total_days_worked: number; // Total days with at least one clock entry
+  late_arrivals: number; // Number of check-ins after 9:30 AM
+}
+
 export interface TeamReport {
   team_id: number;
   team_name: string;
@@ -57,4 +72,5 @@ export interface TeamReport {
   average_hours_per_employee: number;
   daily_reports?: DailyReport[];
   weekly_reports?: WeeklyReport[];
+  advanced_kpis?: AdvancedKPIs;
 }
